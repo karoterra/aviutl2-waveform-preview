@@ -1,0 +1,11 @@
+[package]
+name = "aviutl2-waveform-preview"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "waveformpreview"
+crate-type = ["cdylib"]
+
+[dependencies]
+aviutl2 = "0.34.0"

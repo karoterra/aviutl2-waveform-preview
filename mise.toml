@@ -1,0 +1,22 @@
+[tools]
+"github:sevenc-nanashi/aviutl2-cli" = { version = "latest", bin = "au2.exe" }
+
+[tasks.prepare]
+description = "Prepare development"
+run = "au2 prepare"
+
+[tasks.dev]
+description = "Start AviUtl2 (dev)"
+run = "au2 dev"
+
+[tasks."check:format"]
+description = "Check format"
+run = "cargo fmt --all --check"
+
+[tasks."check:clippy"]
+description = "Clippy"
+run = "cargo clippy --all-targets -- -D warnings"
+
+[tasks.check]
+description = "Check all"
+depends = ["check:*"]

@@ -1,0 +1,39 @@
+#:schema ./.aviutl2-cli/aviutl2.schema.json
+# 設定ファイルについては https://github.com/sevenc-nanashi/aviutl2-cli を参照してください。
+
+# プロジェクト設定
+
+[project]
+id = "Karoterra.WaveformPreview"
+name = "波形プレビュー"
+version = "0.1.0"
+
+# 開発時の設定
+
+[development]
+aviutl2_version = "latest"
+
+# 成果物の設定
+
+[artifacts.English-waveformpreview-aul2]
+destination = "Language/English.waveformpreview.aul2"
+source = "./i18n/English.waveformpreview.aul2"
+
+[artifacts.English-aul2]
+enabled = false
+destination = "Language/English.aul2"
+source = "https://raw.githubusercontent.com/aviutl2/aviutl2_community_translation/refs/heads/main/locales/original_english.aul2"
+
+[artifacts.English-aul2.profiles.debug]
+enabled = true
+
+[artifacts.waveformpreview-aux2]
+destination = "Plugin/waveformpreview.aux2"
+
+[artifacts.waveformpreview-aux2.profiles.debug]
+build = "cargo build"
+source = "target/debug/waveformpreview.dll"
+
+[artifacts.waveformpreview-aux2.profiles.release]
+build = "cargo build --release"
+source = "target/release/waveformpreview.dll"

@@ -1,0 +1,12 @@
+# AviUtl2 CLI
+/.aviutl2-cli
+/release
+
+# Rust
+/target
+
+# Visual Studio Code
+.vscode/
+
+# CI
+NOTICE_ci.html
