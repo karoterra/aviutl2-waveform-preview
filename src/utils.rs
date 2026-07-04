@@ -121,8 +121,9 @@ mod tests {
         let values: [i32; 0] = [];
 
         let chunks: Vec<&[i32]> = NChunks::new(&values, 3).collect();
+        let expected: Vec<&[i32]> = vec![&[][..], &[][..], &[][..]];
 
-        assert_eq!(chunks, vec![&[][..], &[][..], &[][..]]);
+        assert_eq!(chunks, expected);
     }
 
     #[test]

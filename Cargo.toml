@@ -11,3 +11,6 @@ crate-type = ["cdylib"]
 aviutl2 = "0.36.0"
 aviutl2-eframe = "0.36.0"
 egui_plot = "0.35.0"
+process_path = "0.1.4"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
