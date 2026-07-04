@@ -100,6 +100,7 @@ pub struct AnalysisParams {
 #[derive(Debug)]
 enum AnalyzeOutcome {
     Done,
+    Restart(AnalysisParams),
     Canceled,
     Shutdown,
 }
@@ -159,24 +160,38 @@ impl WaveformAnalyzer {
     fn worker_main(command_rx: mpsc::Receiver<AnalyzerCommand>) {
         tracing::info!("Waveform Worker: Start");
 
-        loop {
+        'main: loop {
             let command = match command_rx.recv() {
                 Ok(command) => command,
                 Err(_) => break,
             };
 
             match command {
-                AnalyzerCommand::Analyze(params) => {
+                AnalyzerCommand::Analyze(mut params) => {
                     tracing::info!("Waveform Worker: Analyze command");
-                    match Self::worker_analyze(&command_rx, params) {
-                        Ok(AnalyzeOutcome::Done) => {}
-                        Ok(AnalyzeOutcome::Canceled) => {
-                            tracing::info!("Analyze canceled");
-                        }
-                        Ok(AnalyzeOutcome::Shutdown) => break,
-                        Err(err) => {
-                            tracing::error!("{}", err);
-                            break;
+                    'analyze: loop {
+                        match Self::worker_analyze(&command_rx, params) {
+                            Ok(AnalyzeOutcome::Done) => {
+                                break 'analyze;
+                            }
+                            Ok(AnalyzeOutcome::Restart(new_params)) => {
+                                params = new_params;
+                            }
+                            Ok(AnalyzeOutcome::Canceled) => {
+                                tracing::info!("Analyze canceled");
+                                break 'analyze;
+                            }
+                            Ok(AnalyzeOutcome::Shutdown) => break 'main,
+                            Err(err) => {
+                                tracing::error!("{}", err);
+                                {
+                                    let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+                                    analyzer.status = WaveformAnalyzerStatus::Failed {
+                                        message: err.to_string(),
+                                    };
+                                }
+                                break 'main;
+                            }
                         }
                     }
                 }
@@ -185,7 +200,7 @@ impl WaveformAnalyzer {
                 }
                 AnalyzerCommand::Shutdown => {
                     tracing::info!("Waveform Worker: Shutdown command");
-                    break;
+                    break 'main;
                 }
             }
             crate::request_repaint();
@@ -216,34 +231,24 @@ impl WaveformAnalyzer {
         }
 
         for i in params.start..=params.end {
-            match command_rx.try_recv() {
-                Ok(command) => match command {
-                    AnalyzerCommand::Analyze(_) => {}
-                    AnalyzerCommand::Cancel => {
+            if let Some(outcome) = Self::receive_interrupt_command(command_rx)? {
+                match outcome {
+                    AnalyzeOutcome::Restart(params) => {
+                        return Ok(AnalyzeOutcome::Restart(params));
+                    }
+                    AnalyzeOutcome::Canceled => {
                         {
                             let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
                             analyzer.status = WaveformAnalyzerStatus::Canceled;
                         }
                         return Ok(AnalyzeOutcome::Canceled);
                     }
-                    AnalyzerCommand::Shutdown => {
+                    AnalyzeOutcome::Shutdown => {
                         return Ok(AnalyzeOutcome::Shutdown);
                     }
-                },
-                Err(err) => match err {
-                    mpsc::TryRecvError::Empty => {}
-                    mpsc::TryRecvError::Disconnected => {
-                        let message = "Channel is disconnected";
-                        {
-                            let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
-                            analyzer.status = WaveformAnalyzerStatus::Failed {
-                                message: message.to_string(),
-                            }
-                        }
-                        return Err(anyhow::anyhow!(message));
-                    }
-                },
-            };
+                    AnalyzeOutcome::Done => unreachable!(),
+                }
+            }
 
             let result = EDIT_HANDLE.rendering_scene_audio(i, move |result| {
                 // tracing::info!("rendered: {}", result.frame);
@@ -295,6 +300,38 @@ impl WaveformAnalyzer {
             .map(|(left, right)| StereoWaveformBin::from_samples(left, right))
             .collect()
     }
+
+    fn receive_interrupt_command(
+        command_rx: &mpsc::Receiver<AnalyzerCommand>,
+    ) -> AnyResult<Option<AnalyzeOutcome>> {
+        let mut latest_analyze = None;
+
+        loop {
+            match command_rx.try_recv() {
+                Ok(AnalyzerCommand::Analyze(params)) => {
+                    latest_analyze = Some(params);
+                }
+                Ok(AnalyzerCommand::Cancel) => {
+                    return Ok(Some(AnalyzeOutcome::Canceled));
+                }
+                Ok(AnalyzerCommand::Shutdown) => {
+                    return Ok(Some(AnalyzeOutcome::Shutdown));
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    break;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    return Err(anyhow::anyhow!("Channel is disconnected"));
+                }
+            }
+        }
+
+        if let Some(params) = latest_analyze {
+            Ok(Some(AnalyzeOutcome::Restart(params)))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 pub fn get_status() -> WaveformAnalyzerStatus {
@@ -304,8 +341,6 @@ pub fn get_status() -> WaveformAnalyzerStatus {
 pub fn analyze(config: &AnalysisConfig) {
     let edit_info = EDIT_HANDLE.get_edit_info();
     tracing::info!("シーンフレーム数: {}", edit_info.frame_max);
-
-    cancel();
 
     let params = {
         let (start, end) = match config.range {
