@@ -1,0 +1,384 @@
+use std::sync::mpsc;
+use std::sync::{LazyLock, Mutex};
+use std::thread;
+
+use aviutl2::{AnyResult, anyhow, tracing};
+
+use crate::EDIT_HANDLE;
+use crate::config::{AnalysisAccuracy, AnalysisConfig, AnalysisRange};
+use crate::utils::NChunks;
+
+#[derive(Debug, Default, Clone)]
+pub struct StereoWaveformBin {
+    pub left: WaveformBin,
+    pub right: WaveformBin,
+}
+
+impl StereoWaveformBin {
+    fn from_samples(left: &[f32], right: &[f32]) -> Self {
+        Self {
+            left: WaveformBin::from_samples(left),
+            right: WaveformBin::from_samples(right),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct WaveformBin {
+    pub min: f32,
+    pub max: f32,
+    pub rms: f32,
+}
+
+impl WaveformBin {
+    fn from_samples(samples: &[f32]) -> Self {
+        match samples.split_first() {
+            Some((&first, rest)) => {
+                let mut min = first;
+                let mut max = first;
+                let first64 = first as f64;
+                let mut rms = first64 * first64;
+
+                for &value in rest {
+                    min = min.min(value);
+                    max = max.max(value);
+                    let value64 = value as f64;
+                    rms += value64 * value64;
+                }
+
+                let rms = (rms / samples.len() as f64).sqrt() as f32;
+
+                Self { min, max, rms }
+            }
+            None => Self::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum WaveformAnalyzerStatus {
+    Init,
+    Done,
+    Analyzing {
+        completed_frame: u32,
+        total_frame: u32,
+    },
+    Canceled,
+    Failed {
+        message: String,
+    },
+}
+
+impl WaveformAnalyzerStatus {
+    pub fn is_analyzing(&self) -> bool {
+        matches!(self, Self::Analyzing { .. })
+    }
+}
+
+pub struct WaveformReport {
+    pub params: AnalysisParams,
+    pub bins: Vec<StereoWaveformBin>,
+}
+pub static WAVEFORM_REPORT: Mutex<WaveformReport> = Mutex::new(WaveformReport {
+    params: AnalysisParams {
+        start: 0,
+        end: 0,
+        accuracy: AnalysisAccuracy::Medium,
+        fps: 30.0,
+    },
+    bins: vec![],
+});
+
+#[derive(Debug, Clone)]
+pub struct AnalysisParams {
+    pub start: u32,
+    pub end: u32,
+    pub accuracy: AnalysisAccuracy,
+    pub fps: f64,
+}
+
+#[derive(Debug)]
+enum AnalyzeOutcome {
+    Done,
+    Canceled,
+    Shutdown,
+}
+
+#[derive(Debug, Clone)]
+enum AnalyzerCommand {
+    Analyze(AnalysisParams),
+    Cancel,
+    Shutdown,
+}
+
+struct WaveformAnalyzer {
+    worker: Option<thread::JoinHandle<()>>,
+    tx: Option<mpsc::Sender<AnalyzerCommand>>,
+    status: WaveformAnalyzerStatus,
+}
+static WAVEFORM_ANALYZER: LazyLock<Mutex<WaveformAnalyzer>> =
+    LazyLock::new(|| Mutex::new(WaveformAnalyzer::new()));
+
+impl WaveformAnalyzer {
+    fn new() -> Self {
+        Self {
+            worker: None,
+            tx: None,
+            status: WaveformAnalyzerStatus::Init,
+        }
+    }
+
+    fn is_running(&self) -> bool {
+        self.worker
+            .as_ref()
+            .is_some_and(|worker| !worker.is_finished())
+    }
+
+    fn start(&mut self) {
+        if self.is_running() {
+            tracing::info!("Analyze worker is already running");
+            return;
+        }
+
+        if let Some(worker) = self.worker.take() {
+            if let Err(err) = worker.join() {
+                tracing::error!("Waveform Worker: join failed: {:?}", err);
+            }
+        }
+        self.tx = None;
+
+        tracing::info!("Start Analyze worker");
+
+        let (tx, rx) = mpsc::channel::<AnalyzerCommand>();
+        self.tx = Some(tx);
+        self.worker = Some(thread::spawn(move || {
+            Self::worker_main(rx);
+        }));
+    }
+
+    fn worker_main(command_rx: mpsc::Receiver<AnalyzerCommand>) {
+        tracing::info!("Waveform Worker: Start");
+
+        loop {
+            let command = match command_rx.recv() {
+                Ok(command) => command,
+                Err(_) => break,
+            };
+
+            match command {
+                AnalyzerCommand::Analyze(params) => {
+                    tracing::info!("Waveform Worker: Analyze command");
+                    match Self::worker_analyze(&command_rx, params) {
+                        Ok(AnalyzeOutcome::Done) => {}
+                        Ok(AnalyzeOutcome::Canceled) => {
+                            tracing::info!("Analyze canceled");
+                        }
+                        Ok(AnalyzeOutcome::Shutdown) => break,
+                        Err(err) => {
+                            tracing::error!("{}", err);
+                            break;
+                        }
+                    }
+                }
+                AnalyzerCommand::Cancel => {
+                    tracing::info!("Waveform Worker: Cancel command");
+                }
+                AnalyzerCommand::Shutdown => {
+                    tracing::info!("Waveform Worker: Shutdown command");
+                    break;
+                }
+            }
+            crate::request_repaint();
+        }
+
+        tracing::info!("Waveform Worker: End");
+    }
+
+    fn worker_analyze(
+        command_rx: &mpsc::Receiver<AnalyzerCommand>,
+        params: AnalysisParams,
+    ) -> AnyResult<AnalyzeOutcome> {
+        tracing::info!("Start analyzing: {:?}", params);
+        let total_frame = params.end - params.start + 1;
+        {
+            let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+            analyzer.status = WaveformAnalyzerStatus::Analyzing {
+                completed_frame: 0,
+                total_frame,
+            };
+        }
+        {
+            let mut report = WAVEFORM_REPORT.lock().unwrap();
+            report.params = params.clone();
+            let len = ((params.end - params.start + 1) as usize) * params.accuracy.points();
+            report.bins.clear();
+            report.bins.reserve(len);
+        }
+
+        for i in params.start..=params.end {
+            match command_rx.try_recv() {
+                Ok(command) => match command {
+                    AnalyzerCommand::Analyze(_) => {}
+                    AnalyzerCommand::Cancel => {
+                        {
+                            let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+                            analyzer.status = WaveformAnalyzerStatus::Canceled;
+                        }
+                        return Ok(AnalyzeOutcome::Canceled);
+                    }
+                    AnalyzerCommand::Shutdown => {
+                        return Ok(AnalyzeOutcome::Shutdown);
+                    }
+                },
+                Err(err) => match err {
+                    mpsc::TryRecvError::Empty => {}
+                    mpsc::TryRecvError::Disconnected => {
+                        let message = "Channel is disconnected";
+                        {
+                            let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+                            analyzer.status = WaveformAnalyzerStatus::Failed {
+                                message: message.to_string(),
+                            }
+                        }
+                        return Err(anyhow::anyhow!(message));
+                    }
+                },
+            };
+
+            let result = EDIT_HANDLE.rendering_scene_audio(i, move |result| {
+                // tracing::info!("rendered: {}", result.frame);
+                let bins = Self::analyze_frame(result, params.accuracy);
+
+                {
+                    let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+                    analyzer.status = WaveformAnalyzerStatus::Analyzing {
+                        completed_frame: i - params.start + 1,
+                        total_frame,
+                    };
+                }
+
+                let mut report = WAVEFORM_REPORT.lock().unwrap();
+                report.bins.extend(bins);
+            });
+            if let Err(e) = result {
+                let message = format!("Failed to rendering_scene_audio: {}", e);
+                {
+                    let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+                    analyzer.status = WaveformAnalyzerStatus::Failed {
+                        message: message.clone(),
+                    };
+                }
+                return Err(anyhow::anyhow!(message));
+            }
+            EDIT_HANDLE.wait_rendering_task();
+        }
+
+        {
+            let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+            analyzer.status = WaveformAnalyzerStatus::Done;
+        }
+
+        Ok(AnalyzeOutcome::Done)
+    }
+
+    fn analyze_frame(
+        frame: aviutl2::generic::RenderingSceneAudio,
+        accuracy: AnalysisAccuracy,
+    ) -> Vec<StereoWaveformBin> {
+        let points = accuracy.points();
+
+        let left_chunks = NChunks::new(frame.buffer0, points);
+        let right_chunks = NChunks::new(frame.buffer1, points);
+
+        left_chunks
+            .zip(right_chunks)
+            .map(|(left, right)| StereoWaveformBin::from_samples(left, right))
+            .collect()
+    }
+}
+
+pub fn get_status() -> WaveformAnalyzerStatus {
+    WAVEFORM_ANALYZER.lock().unwrap().status.clone()
+}
+
+pub fn analyze(config: &AnalysisConfig) {
+    let edit_info = EDIT_HANDLE.get_edit_info();
+    tracing::info!("シーンフレーム数: {}", edit_info.frame_max);
+
+    cancel();
+
+    let params = {
+        let (start, end) = match config.range {
+            AnalysisRange::All => (0, edit_info.frame_max as u32),
+            AnalysisRange::Selected => {
+                if let Some((start, end)) =
+                    edit_info.select_range_start.zip(edit_info.select_range_end)
+                {
+                    (start as u32, end as u32)
+                } else {
+                    (0, edit_info.frame_max as u32)
+                }
+            }
+        };
+        let fps = *edit_info.fps.numer() as f64 / *edit_info.fps.denom() as f64;
+
+        AnalysisParams {
+            start,
+            end,
+            accuracy: config.accuracy,
+            fps,
+        }
+    };
+
+    let tx = {
+        let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+        analyzer.start();
+        analyzer.tx.clone()
+    };
+
+    if let Some(tx) = tx {
+        if let Err(err) = tx.send(AnalyzerCommand::Analyze(params)) {
+            tracing::error!("Waveform Worker: failed to send Analyze command: {}", err);
+        }
+    }
+}
+
+pub fn cancel() {
+    let tx = {
+        let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+        if !analyzer.is_running() || !analyzer.status.is_analyzing() {
+            return;
+        }
+        analyzer.start();
+        analyzer.tx.clone()
+    };
+
+    if let Some(tx) = tx {
+        if let Err(err) = tx.send(AnalyzerCommand::Cancel) {
+            tracing::error!("Waveform Worker: failed to send Cancel command: {}", err);
+        }
+    }
+}
+
+pub fn shutdown() {
+    let (tx, worker) = {
+        let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
+        let tx = analyzer.tx.take();
+        let worker = analyzer.worker.take();
+        (tx, worker)
+    };
+
+    if let Some(tx) = tx {
+        if let Err(err) = tx.send(AnalyzerCommand::Shutdown) {
+            tracing::warn!("Waveform Worker: failed to send Shutdown command: {}", err);
+        }
+
+        drop(tx);
+    }
+
+    if let Some(worker) = worker {
+        if let Err(err) = worker.join() {
+            tracing::error!("Waveform Worker: join failed: {:?}", err);
+        }
+    }
+}
