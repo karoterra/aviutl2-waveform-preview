@@ -1,4 +1,5 @@
 use aviutl2::tracing;
+use aviutl2_eframe::egui::InnerResponse;
 use aviutl2_eframe::{AviUtl2EframeHandle, eframe, egui};
 use egui_plot::{AxisHints, FilledArea, GridMark, Plot, VLine};
 
@@ -111,11 +112,24 @@ impl WaveformPreviewApp {
 
         let x_axes = vec![AxisHints::new_x().formatter(time_formatter)];
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        let InnerResponse {
+            inner:
+                (
+                    InnerResponse {
+                        inner: left_response,
+                        ..
+                    },
+                    InnerResponse {
+                        inner: right_response,
+                        ..
+                    },
+                ),
+            ..
+        } = egui::CentralPanel::default().show_inside(ui, |ui| {
             let size = ui.available_size();
             let half_height = size.y / 2.0;
 
-            ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
+            let left_response = ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
                 Plot::new("WaveformPlot_Left")
                     .link_axis(link_group_id, link_vec)
                     .link_cursor(link_group_id, link_vec)
@@ -134,9 +148,11 @@ impl WaveformPreviewApp {
                         plot_ui.add(area_left);
                         plot_ui.add(rms_left);
                         plot_ui.vline(cursor.clone());
-                    });
+
+                        plot_ui.pointer_coordinate()
+                    })
             });
-            ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
+            let right_response = ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
                 Plot::new("WaveformPlot_Right")
                     .link_axis(link_group_id, link_vec)
                     .link_cursor(link_group_id, link_vec)
@@ -155,9 +171,26 @@ impl WaveformPreviewApp {
                         plot_ui.add(area_right);
                         plot_ui.add(rms_right);
                         plot_ui.vline(cursor);
-                    });
+
+                        plot_ui.pointer_coordinate()
+                    })
             });
+
+            (left_response, right_response)
         });
+
+        if left_response.response.clicked()
+            && let Some(pos) = left_response.inner
+        {
+            let new_frame = (pos.x * fps).floor() as usize;
+            crate::set_frame(new_frame);
+        }
+        if right_response.response.clicked()
+            && let Some(pos) = right_response.inner
+        {
+            let new_frame = (pos.x * fps).floor() as usize;
+            crate::set_frame(new_frame);
+        }
     }
 
     fn show_config(&mut self, ui: &mut egui::Ui, config: &mut PluginConfig) {

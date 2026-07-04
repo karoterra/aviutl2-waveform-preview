@@ -126,4 +126,18 @@ pub fn request_repaint() {
     });
 }
 
+pub fn set_frame(frame: usize) {
+    let layer = EDIT_HANDLE.get_edit_info().layer;
+    let result = EDIT_HANDLE.call_edit_section(|edit| edit.set_cursor_layer_frame(layer, frame));
+    match result {
+        Ok(Ok(_)) => {}
+        Ok(Err(err)) => {
+            tracing::error!("Failed to set frame: {}", err);
+        }
+        Err(err) => {
+            tracing::error!("Failed to set frame: {}", err);
+        }
+    }
+}
+
 aviutl2::register_generic_plugin!(WaveformPreviewPlugin);
