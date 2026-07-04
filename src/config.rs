@@ -1,6 +1,14 @@
-use std::sync::{LazyLock, Mutex};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{LazyLock, Mutex},
+};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+use aviutl2::{AnyResult, anyhow, tracing};
+use aviutl2_eframe::egui::Color32;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AnalysisRange {
     All,
     Selected,
@@ -21,7 +29,7 @@ impl std::fmt::Display for AnalysisRange {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AnalysisAccuracy {
     Low,
     Medium,
@@ -57,10 +65,15 @@ impl std::fmt::Display for AnalysisAccuracy {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisConfig {
+    #[serde(default)]
     pub range: AnalysisRange,
+
+    #[serde(default)]
     pub accuracy: AnalysisAccuracy,
+
+    #[serde(default)]
     pub immediate: bool,
 }
 
@@ -74,5 +87,122 @@ impl Default for AnalysisConfig {
     }
 }
 
-pub static ANALYSIS_CONFIG: LazyLock<Mutex<AnalysisConfig>> =
-    LazyLock::new(|| Mutex::new(AnalysisConfig::default()));
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewConfig {
+    #[serde(default = "ViewConfig::default_waveform_color")]
+    pub waveform_color: Color32,
+
+    #[serde(default = "ViewConfig::default_rms_color")]
+    pub rms_color: Color32,
+
+    #[serde(default = "ViewConfig::default_frame_cursor_color")]
+    pub frame_cursor_color: Color32,
+
+    #[serde(default = "ViewConfig::default_selected_span_color")]
+    pub selected_span_color: Color32,
+
+    #[serde(default = "ViewConfig::default_out_of_scene_span_color")]
+    pub out_of_scene_span_color: Color32,
+}
+
+impl Default for ViewConfig {
+    fn default() -> Self {
+        Self {
+            waveform_color: Self::default_waveform_color(),
+            rms_color: Self::default_rms_color(),
+            frame_cursor_color: Self::default_frame_cursor_color(),
+            selected_span_color: Self::default_selected_span_color(),
+            out_of_scene_span_color: Self::default_out_of_scene_span_color(),
+        }
+    }
+}
+
+impl ViewConfig {
+    fn default_waveform_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(100, 200, 100, 255)
+    }
+
+    fn default_rms_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(50, 255, 50, 255)
+    }
+
+    fn default_frame_cursor_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 0, 0, 255)
+    }
+
+    fn default_selected_span_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(107, 195, 225, 70)
+    }
+
+    fn default_out_of_scene_span_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 60)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginConfig {
+    #[serde(default = "PluginConfig::default_version")]
+    pub version: u32,
+
+    #[serde(default)]
+    pub analysis: AnalysisConfig,
+
+    #[serde(default)]
+    pub view: ViewConfig,
+}
+
+impl Default for PluginConfig {
+    fn default() -> Self {
+        Self {
+            version: Self::default_version(),
+            analysis: AnalysisConfig::default(),
+            view: ViewConfig::default(),
+        }
+    }
+}
+
+impl PluginConfig {
+    fn default_version() -> u32 {
+        1
+    }
+
+    fn get_path() -> AnyResult<PathBuf> {
+        let dll_path =
+            process_path::get_dylib_path().ok_or(anyhow::anyhow!("Failed to get dll path"))?;
+        let dll_dir = dll_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .ok_or(anyhow::anyhow!("Failed to resolve dll directory"))?;
+        let config_path = dll_dir.join("waveformpreview_config.json");
+        Ok(config_path)
+    }
+
+    pub fn load() -> AnyResult<Self> {
+        let config_path = Self::get_path()?;
+        if !config_path.exists() {
+            return Ok(Self::default());
+        }
+
+        let text = fs::read_to_string(config_path)?;
+        let config: Self = serde_json::from_str(&text)?;
+        Ok(config)
+    }
+
+    pub fn save(&self) -> AnyResult<()> {
+        let config_path = Self::get_path()?;
+        let serialized = serde_json::to_string_pretty(&self)?;
+        fs::write(config_path, serialized)?;
+        Ok(())
+    }
+}
+
+pub static ANALYSIS_CONFIG: LazyLock<Mutex<PluginConfig>> = LazyLock::new(|| {
+    let config = match PluginConfig::load() {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::error!("Failed to load config: {}", err);
+            PluginConfig::default()
+        }
+    };
+    Mutex::new(config)
+});
