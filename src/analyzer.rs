@@ -354,6 +354,11 @@ pub fn analyze(config: &AnalysisConfig) {
                     (0, edit_info.frame_max as u32)
                 }
             }
+            AnalysisRange::VisibleTimeline => (
+                edit_info.display_frame_start as u32,
+                (edit_info.display_frame_start + edit_info.display_frame_num)
+                    .min(edit_info.frame_max) as u32,
+            ),
         };
         let fps = *edit_info.fps.numer() as f64 / *edit_info.fps.denom() as f64;
 

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 pub enum AnalysisRange {
     All,
     Selected,
+    VisibleTimeline,
 }
 
 impl Default for AnalysisRange {
@@ -25,6 +26,7 @@ impl std::fmt::Display for AnalysisRange {
         match self {
             AnalysisRange::All => write!(f, "全体"),
             AnalysisRange::Selected => write!(f, "選択範囲"),
+            AnalysisRange::VisibleTimeline => write!(f, "表示範囲"),
         }
     }
 }

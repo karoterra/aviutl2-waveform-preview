@@ -360,7 +360,11 @@ impl WaveformPreviewApp {
                 ui.end_row();
 
                 ui.label("解析対象");
-                let values = [AnalysisRange::All, AnalysisRange::Selected];
+                let values = [
+                    AnalysisRange::All,
+                    AnalysisRange::Selected,
+                    AnalysisRange::VisibleTimeline,
+                ];
                 self.combobox(ui, "解析対象", &mut config.analysis.range, &values);
                 ui.end_row();
 
