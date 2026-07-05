@@ -90,7 +90,8 @@ impl Default for AnalysisConfig {
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ViewScaleY {
     Linear,
-    Decibel,
+    DecibelBipolar,
+    DecibelUnipolar,
 }
 
 impl Default for ViewScaleY {
@@ -103,7 +104,8 @@ impl std::fmt::Display for ViewScaleY {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ViewScaleY::Linear => write!(f, "リニア"),
-            ViewScaleY::Decibel => write!(f, "dB"),
+            ViewScaleY::DecibelBipolar => write!(f, "dB（正負）"),
+            ViewScaleY::DecibelUnipolar => write!(f, "dB（絶対値）"),
         }
     }
 }

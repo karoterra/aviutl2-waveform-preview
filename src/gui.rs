@@ -1,5 +1,5 @@
 use aviutl2::tracing;
-use aviutl2_eframe::egui::InnerResponse;
+use aviutl2_eframe::egui::{InnerResponse, Response};
 use aviutl2_eframe::{AviUtl2EframeHandle, eframe, egui};
 use egui_plot::{FilledArea, GridMark, Plot, VLine};
 
@@ -11,7 +11,10 @@ use crate::config::{
 
 pub struct WaveformPreviewApp {
     config_panel: bool,
+    reset_plot: bool,
 }
+
+const MIN_DB: f64 = -60.0;
 
 fn time_formatter(mark: GridMark, _range: &std::ops::RangeInclusive<f64>) -> String {
     let total_centiseconds = (mark.value * 100.0).round() as u64;
@@ -28,8 +31,8 @@ fn time_formatter(mark: GridMark, _range: &std::ops::RangeInclusive<f64>) -> Str
 }
 
 fn decibel_formatter(mark: GridMark, _range: &std::ops::RangeInclusive<f64>) -> String {
-    let y = remap(mark.value.abs(), 0.0, 1.0, -60.0, 0.0).round();
-    y.to_string()
+    let y = remap(mark.value.abs(), 0.0, 1.0, MIN_DB, 0.0);
+    format!("{y:.0}")
 }
 
 fn linear(x: f32) -> f64 {
@@ -41,18 +44,20 @@ fn remap(x: f64, a: f64, b: f64, c: f64, d: f64) -> f64 {
     c + (x - a) * (d - c) / (b - a)
 }
 
-fn decibel(x: f32) -> f64 {
-    let x = x as f64;
-    let abs_x = x.abs();
-    let db = if abs_x < 1e-3 {
-        -60.0
-    } else {
-        20.0 * abs_x.log10()
-    };
-    let db = db.clamp(-60.0, 0.0);
-    let y = remap(db, -60.0, 0.0, 0.0, 1.0);
+fn decibel_bipolar(x: f32) -> f64 {
+    x.signum() as f64 * decibel_unipolar(x)
+}
 
-    x.signum() * y
+fn decibel_unipolar(x: f32) -> f64 {
+    let amp = (x as f64).abs();
+    let db = if amp <= 0.0 {
+        MIN_DB
+    } else {
+        20.0 * amp.log10()
+    }
+    .clamp(MIN_DB, 0.0);
+
+    remap(db, MIN_DB, 0.0, 0.0, 1.0)
 }
 
 impl WaveformPreviewApp {
@@ -64,6 +69,7 @@ impl WaveformPreviewApp {
 
         Self {
             config_panel: false,
+            reset_plot: false,
         }
     }
 
@@ -73,14 +79,39 @@ impl WaveformPreviewApp {
         bins: &[StereoWaveformBin],
         config: &ViewConfig,
     ) -> (FilledArea, FilledArea) {
-        let f = match config.scale_y {
-            ViewScaleY::Linear => linear,
-            ViewScaleY::Decibel => decibel,
-        };
-        let left_min: Vec<f64> = bins.iter().map(|bin| f(bin.left.min)).collect();
-        let left_max: Vec<f64> = bins.iter().map(|bin| f(bin.left.max)).collect();
-        let right_min: Vec<f64> = bins.iter().map(|bin| f(bin.right.min)).collect();
-        let right_max: Vec<f64> = bins.iter().map(|bin| f(bin.right.max)).collect();
+        let (left_min, left_max, right_min, right_max): (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) =
+            match config.scale_y {
+                ViewScaleY::Linear => (
+                    bins.iter().map(|bin| linear(bin.left.min)).collect(),
+                    bins.iter().map(|bin| linear(bin.left.max)).collect(),
+                    bins.iter().map(|bin| linear(bin.right.min)).collect(),
+                    bins.iter().map(|bin| linear(bin.right.max)).collect(),
+                ),
+                ViewScaleY::DecibelBipolar => (
+                    bins.iter()
+                        .map(|bin| decibel_bipolar(bin.left.min))
+                        .collect(),
+                    bins.iter()
+                        .map(|bin| decibel_bipolar(bin.left.max))
+                        .collect(),
+                    bins.iter()
+                        .map(|bin| decibel_bipolar(bin.right.min))
+                        .collect(),
+                    bins.iter()
+                        .map(|bin| decibel_bipolar(bin.right.max))
+                        .collect(),
+                ),
+                ViewScaleY::DecibelUnipolar => (
+                    bins.iter().map(|_| 0.0).collect(),
+                    bins.iter()
+                        .map(|bin| decibel_unipolar(bin.left.max.abs().max(bin.left.min.abs())))
+                        .collect(),
+                    bins.iter().map(|_| 0.0).collect(),
+                    bins.iter()
+                        .map(|bin| decibel_unipolar(bin.right.max.abs().max(bin.right.min.abs())))
+                        .collect(),
+                ),
+            };
 
         let left =
             FilledArea::new("left", &xs, &left_min, &left_max).fill_color(config.waveform_color);
@@ -96,14 +127,39 @@ impl WaveformPreviewApp {
         bins: &[StereoWaveformBin],
         config: &ViewConfig,
     ) -> (FilledArea, FilledArea) {
-        let f = match config.scale_y {
-            ViewScaleY::Linear => linear,
-            ViewScaleY::Decibel => decibel,
-        };
-        let left_min: Vec<f64> = bins.iter().map(|bin| -f(bin.left.rms)).collect();
-        let left_max: Vec<f64> = bins.iter().map(|bin| f(bin.left.rms)).collect();
-        let right_min: Vec<f64> = bins.iter().map(|bin| -f(bin.right.rms)).collect();
-        let right_max: Vec<f64> = bins.iter().map(|bin| f(bin.right.rms)).collect();
+        let (left_min, left_max, right_min, right_max): (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) =
+            match config.scale_y {
+                ViewScaleY::Linear => (
+                    bins.iter().map(|bin| -linear(bin.left.rms)).collect(),
+                    bins.iter().map(|bin| linear(bin.left.rms)).collect(),
+                    bins.iter().map(|bin| -linear(bin.right.rms)).collect(),
+                    bins.iter().map(|bin| linear(bin.right.rms)).collect(),
+                ),
+                ViewScaleY::DecibelBipolar => (
+                    bins.iter()
+                        .map(|bin| -decibel_unipolar(bin.left.rms))
+                        .collect(),
+                    bins.iter()
+                        .map(|bin| decibel_unipolar(bin.left.rms))
+                        .collect(),
+                    bins.iter()
+                        .map(|bin| -decibel_unipolar(bin.right.rms))
+                        .collect(),
+                    bins.iter()
+                        .map(|bin| decibel_unipolar(bin.right.rms))
+                        .collect(),
+                ),
+                ViewScaleY::DecibelUnipolar => (
+                    bins.iter().map(|_| 0.0).collect(),
+                    bins.iter()
+                        .map(|bin| decibel_unipolar(bin.left.rms))
+                        .collect(),
+                    bins.iter().map(|_| 0.0).collect(),
+                    bins.iter()
+                        .map(|bin| decibel_unipolar(bin.right.rms))
+                        .collect(),
+                ),
+            };
 
         let left =
             FilledArea::new("rms_left", &xs, &left_min, &left_max).fill_color(config.rms_color);
@@ -113,42 +169,56 @@ impl WaveformPreviewApp {
         (left, right)
     }
 
-    fn new_plot(&self, ui: &mut egui::Ui, config: &ViewConfig) -> (Plot<'_>, Plot<'_>) {
+    fn new_plot(&mut self, ui: &mut egui::Ui, config: &ViewConfig) -> (Plot<'_>, Plot<'_>) {
         let link_group_id = ui.id().with("WaveformPlot_LinkGroup");
         let link_vec = egui::Vec2b::new(true, true);
 
         let left = Plot::new("WaveformPlot_Left")
             .link_axis(link_group_id, link_vec)
             .link_cursor(link_group_id, link_vec)
-            .default_y_bounds(-1.0, 1.0)
-            .center_y_axis(true)
             .x_axis_formatter(time_formatter)
+            .allow_drag(egui::Vec2b::new(true, false))
+            .allow_axis_zoom_drag(egui::Vec2b::new(true, false))
             .allow_scroll(egui::Vec2b::new(true, false))
             .allow_zoom(egui::Vec2b::new(true, false));
         let right = Plot::new("WaveformPlot_Right")
             .link_axis(link_group_id, link_vec)
             .link_cursor(link_group_id, link_vec)
-            .default_y_bounds(-1.0, 1.0)
-            .center_y_axis(true)
             .x_axis_formatter(time_formatter)
+            .allow_drag(egui::Vec2b::new(true, false))
+            .allow_axis_zoom_drag(egui::Vec2b::new(true, false))
             .allow_scroll(egui::Vec2b::new(true, false))
             .allow_zoom(egui::Vec2b::new(true, false));
 
         let (left, right) = match config.scale_y {
-            ViewScaleY::Linear => (left.y_axis_label("L"), right.y_axis_label("R")),
-            ViewScaleY::Decibel => (
+            ViewScaleY::Linear => (
+                left.y_axis_label("L").default_y_bounds(-1.0, 1.0),
+                right.y_axis_label("R").default_y_bounds(-1.0, 1.0),
+            ),
+            ViewScaleY::DecibelBipolar => (
                 left.y_axis_label("L [dB]")
-                    .y_axis_formatter(decibel_formatter),
+                    .y_axis_formatter(decibel_formatter)
+                    .default_y_bounds(-1.0, 1.0),
                 right
                     .y_axis_label("R [dB]")
-                    .y_axis_formatter(decibel_formatter),
+                    .y_axis_formatter(decibel_formatter)
+                    .default_y_bounds(-1.0, 1.0),
+            ),
+            ViewScaleY::DecibelUnipolar => (
+                left.y_axis_label("L [dB]")
+                    .y_axis_formatter(decibel_formatter)
+                    .default_y_bounds(0.0, 1.0),
+                right
+                    .y_axis_label("R [dB]")
+                    .y_axis_formatter(decibel_formatter)
+                    .default_y_bounds(0.0, 1.0),
             ),
         };
 
         (left, right)
     }
 
-    fn show_plot(&self, ui: &mut egui::Ui, report: &WaveformReport, config: &ViewConfig) {
+    fn show_plot(&mut self, ui: &mut egui::Ui, report: &WaveformReport, config: &ViewConfig) {
         let edit_info = EDIT_HANDLE.get_edit_info();
 
         let points_per_frame = report.params.accuracy.points();
@@ -180,6 +250,14 @@ impl WaveformPreviewApp {
             egui_plot::Span::new("", (edit_info.frame_max as f64 / fps)..=f64::INFINITY)
                 .fill(config.out_of_scene_span_color);
 
+        let reset_plot = self.reset_plot;
+        self.reset_plot = false;
+        let range_y = match config.scale_y {
+            ViewScaleY::Linear => -1.0..=1.0,
+            ViewScaleY::DecibelBipolar => -1.0..=1.0,
+            ViewScaleY::DecibelUnipolar => 0.0..=1.0,
+        };
+
         let InnerResponse {
             inner:
                 (
@@ -209,6 +287,11 @@ impl WaveformPreviewApp {
                     plot_ui.add(rms_left);
                     plot_ui.vline(cursor.clone());
 
+                    if reset_plot {
+                        tracing::info!("Reset Y range");
+                        plot_ui.set_plot_bounds_y(range_y.clone());
+                    }
+
                     plot_ui.pointer_coordinate()
                 })
             });
@@ -222,6 +305,10 @@ impl WaveformPreviewApp {
                     plot_ui.add(area_right);
                     plot_ui.add(rms_right);
                     plot_ui.vline(cursor);
+
+                    if reset_plot {
+                        plot_ui.set_plot_bounds_y(range_y);
+                    }
 
                     plot_ui.pointer_coordinate()
                 })
@@ -244,6 +331,23 @@ impl WaveformPreviewApp {
         }
     }
 
+    fn combobox<T: ToString + PartialEq + Copy>(
+        &self,
+        ui: &mut egui::Ui,
+        id_salt: &str,
+        selected: &mut T,
+        values: &[T],
+    ) -> Response {
+        let response = egui::ComboBox::from_id_salt(id_salt)
+            .selected_text(selected.to_string())
+            .show_ui(ui, |ui| {
+                for &x in values {
+                    ui.selectable_value(selected, x, x.to_string());
+                }
+            });
+        response.response
+    }
+
     fn show_config(&mut self, ui: &mut egui::Ui, config: &mut PluginConfig) {
         ui.heading("解析");
         ui.separator();
@@ -256,28 +360,18 @@ impl WaveformPreviewApp {
                 ui.end_row();
 
                 ui.label("解析対象");
-                egui::ComboBox::from_id_salt("解析対象")
-                    .selected_text(config.analysis.range.to_string())
-                    .show_ui(ui, |ui| {
-                        for x in [AnalysisRange::All, AnalysisRange::Selected] {
-                            ui.selectable_value(&mut config.analysis.range, x, x.to_string());
-                        }
-                    });
+                let values = [AnalysisRange::All, AnalysisRange::Selected];
+                self.combobox(ui, "解析対象", &mut config.analysis.range, &values);
                 ui.end_row();
 
                 ui.label("解析精度");
-                egui::ComboBox::from_id_salt("解析精度")
-                    .selected_text(config.analysis.accuracy.to_string())
-                    .show_ui(ui, |ui| {
-                        for x in [
-                            AnalysisAccuracy::Low,
-                            AnalysisAccuracy::Medium,
-                            AnalysisAccuracy::High,
-                            AnalysisAccuracy::VeryHigh,
-                        ] {
-                            ui.selectable_value(&mut config.analysis.accuracy, x, x.to_string());
-                        }
-                    });
+                let values = [
+                    AnalysisAccuracy::Low,
+                    AnalysisAccuracy::Medium,
+                    AnalysisAccuracy::High,
+                    AnalysisAccuracy::VeryHigh,
+                ];
+                self.combobox(ui, "解析精度", &mut config.analysis.accuracy, &values);
                 ui.end_row();
             });
 
@@ -289,13 +383,16 @@ impl WaveformPreviewApp {
             .striped(true)
             .show(ui, |ui| {
                 ui.label("縦軸の単位");
-                egui::ComboBox::from_id_salt("縦軸の単位")
-                    .selected_text(config.view.scale_y.to_string())
-                    .show_ui(ui, |ui| {
-                        for x in [ViewScaleY::Linear, ViewScaleY::Decibel] {
-                            ui.selectable_value(&mut config.view.scale_y, x, x.to_string());
-                        }
-                    });
+                let values = [
+                    ViewScaleY::Linear,
+                    ViewScaleY::DecibelBipolar,
+                    ViewScaleY::DecibelUnipolar,
+                ];
+                let before = config.view.scale_y;
+                self.combobox(ui, "縦軸の単位", &mut config.view.scale_y, &values);
+                if config.view.scale_y != before {
+                    self.reset_plot = true;
+                }
                 ui.end_row();
 
                 ui.label("波形色");
