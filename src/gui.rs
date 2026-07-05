@@ -1,11 +1,13 @@
 use aviutl2::tracing;
 use aviutl2_eframe::egui::InnerResponse;
 use aviutl2_eframe::{AviUtl2EframeHandle, eframe, egui};
-use egui_plot::{AxisHints, FilledArea, GridMark, Plot, VLine};
+use egui_plot::{FilledArea, GridMark, Plot, VLine};
 
 use crate::EDIT_HANDLE;
 use crate::analyzer::{StereoWaveformBin, WAVEFORM_REPORT, WaveformAnalyzerStatus, WaveformReport};
-use crate::config::{ANALYSIS_CONFIG, AnalysisAccuracy, AnalysisRange, PluginConfig, ViewConfig};
+use crate::config::{
+    ANALYSIS_CONFIG, AnalysisAccuracy, AnalysisRange, PluginConfig, ViewConfig, ViewScaleY,
+};
 
 pub struct WaveformPreviewApp {
     config_panel: bool,
@@ -23,6 +25,34 @@ fn time_formatter(mark: GridMark, _range: &std::ops::RangeInclusive<f64>) -> Str
         "{:02}:{:02}:{:02}.{:02}",
         hours, minutes, seconds, centiseconds
     )
+}
+
+fn decibel_formatter(mark: GridMark, _range: &std::ops::RangeInclusive<f64>) -> String {
+    let y = remap(mark.value.abs(), 0.0, 1.0, -60.0, 0.0).round();
+    y.to_string()
+}
+
+fn linear(x: f32) -> f64 {
+    x as f64
+}
+
+// x の値を [a, b] から [c, d] に線形写像する
+fn remap(x: f64, a: f64, b: f64, c: f64, d: f64) -> f64 {
+    c + (x - a) * (d - c) / (b - a)
+}
+
+fn decibel(x: f32) -> f64 {
+    let x = x as f64;
+    let abs_x = x.abs();
+    let db = if abs_x < 1e-3 {
+        -60.0
+    } else {
+        20.0 * abs_x.log10()
+    };
+    let db = db.clamp(-60.0, 0.0);
+    let y = remap(db, -60.0, 0.0, 0.0, 1.0);
+
+    x.signum() * y
 }
 
 impl WaveformPreviewApp {
@@ -43,10 +73,14 @@ impl WaveformPreviewApp {
         bins: &[StereoWaveformBin],
         config: &ViewConfig,
     ) -> (FilledArea, FilledArea) {
-        let left_min: Vec<f64> = bins.iter().map(|bin| bin.left.min as f64).collect();
-        let left_max: Vec<f64> = bins.iter().map(|bin| bin.left.max as f64).collect();
-        let right_min: Vec<f64> = bins.iter().map(|bin| bin.right.min as f64).collect();
-        let right_max: Vec<f64> = bins.iter().map(|bin| bin.right.max as f64).collect();
+        let f = match config.scale_y {
+            ViewScaleY::Linear => linear,
+            ViewScaleY::Decibel => decibel,
+        };
+        let left_min: Vec<f64> = bins.iter().map(|bin| f(bin.left.min)).collect();
+        let left_max: Vec<f64> = bins.iter().map(|bin| f(bin.left.max)).collect();
+        let right_min: Vec<f64> = bins.iter().map(|bin| f(bin.right.min)).collect();
+        let right_max: Vec<f64> = bins.iter().map(|bin| f(bin.right.max)).collect();
 
         let left =
             FilledArea::new("left", &xs, &left_min, &left_max).fill_color(config.waveform_color);
@@ -62,15 +96,54 @@ impl WaveformPreviewApp {
         bins: &[StereoWaveformBin],
         config: &ViewConfig,
     ) -> (FilledArea, FilledArea) {
-        let left_min: Vec<f64> = bins.iter().map(|bin| -bin.left.rms as f64).collect();
-        let left_max: Vec<f64> = bins.iter().map(|bin| bin.left.rms as f64).collect();
-        let right_min: Vec<f64> = bins.iter().map(|bin| -bin.right.rms as f64).collect();
-        let right_max: Vec<f64> = bins.iter().map(|bin| bin.right.rms as f64).collect();
+        let f = match config.scale_y {
+            ViewScaleY::Linear => linear,
+            ViewScaleY::Decibel => decibel,
+        };
+        let left_min: Vec<f64> = bins.iter().map(|bin| -f(bin.left.rms)).collect();
+        let left_max: Vec<f64> = bins.iter().map(|bin| f(bin.left.rms)).collect();
+        let right_min: Vec<f64> = bins.iter().map(|bin| -f(bin.right.rms)).collect();
+        let right_max: Vec<f64> = bins.iter().map(|bin| f(bin.right.rms)).collect();
 
         let left =
             FilledArea::new("rms_left", &xs, &left_min, &left_max).fill_color(config.rms_color);
         let right =
             FilledArea::new("rms_right", &xs, &right_min, &right_max).fill_color(config.rms_color);
+
+        (left, right)
+    }
+
+    fn new_plot(&self, ui: &mut egui::Ui, config: &ViewConfig) -> (Plot<'_>, Plot<'_>) {
+        let link_group_id = ui.id().with("WaveformPlot_LinkGroup");
+        let link_vec = egui::Vec2b::new(true, true);
+
+        let left = Plot::new("WaveformPlot_Left")
+            .link_axis(link_group_id, link_vec)
+            .link_cursor(link_group_id, link_vec)
+            .default_y_bounds(-1.0, 1.0)
+            .center_y_axis(true)
+            .x_axis_formatter(time_formatter)
+            .allow_scroll(egui::Vec2b::new(true, false))
+            .allow_zoom(egui::Vec2b::new(true, false));
+        let right = Plot::new("WaveformPlot_Right")
+            .link_axis(link_group_id, link_vec)
+            .link_cursor(link_group_id, link_vec)
+            .default_y_bounds(-1.0, 1.0)
+            .center_y_axis(true)
+            .x_axis_formatter(time_formatter)
+            .allow_scroll(egui::Vec2b::new(true, false))
+            .allow_zoom(egui::Vec2b::new(true, false));
+
+        let (left, right) = match config.scale_y {
+            ViewScaleY::Linear => (left.y_axis_label("L"), right.y_axis_label("R")),
+            ViewScaleY::Decibel => (
+                left.y_axis_label("L [dB]")
+                    .y_axis_formatter(decibel_formatter),
+                right
+                    .y_axis_label("R [dB]")
+                    .y_axis_formatter(decibel_formatter),
+            ),
+        };
 
         (left, right)
     }
@@ -107,11 +180,6 @@ impl WaveformPreviewApp {
             egui_plot::Span::new("", (edit_info.frame_max as f64 / fps)..=f64::INFINITY)
                 .fill(config.out_of_scene_span_color);
 
-        let link_group_id = ui.id().with("WaveformPlot_LinkGroup");
-        let link_vec = egui::Vec2b::new(true, true);
-
-        let x_axes = vec![AxisHints::new_x().formatter(time_formatter)];
-
         let InnerResponse {
             inner:
                 (
@@ -128,52 +196,35 @@ impl WaveformPreviewApp {
         } = egui::CentralPanel::default().show_inside(ui, |ui| {
             let size = ui.available_size();
             let half_height = size.y / 2.0;
+            let (left_plot, right_plot) = self.new_plot(ui, &config);
 
             let left_response = ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
-                Plot::new("WaveformPlot_Left")
-                    .link_axis(link_group_id, link_vec)
-                    .link_cursor(link_group_id, link_vec)
-                    .default_y_bounds(-1.0, 1.0)
-                    .center_y_axis(true)
-                    .y_axis_label("L")
-                    .custom_x_axes(x_axes.clone())
-                    .allow_scroll(egui::Vec2b::new(true, false))
-                    .allow_zoom(egui::Vec2b::new(true, false))
-                    .show(ui, |plot_ui| {
-                        plot_ui.span(out_of_scene_span_left.clone());
-                        plot_ui.span(out_of_scene_span_right.clone());
-                        if let Some(span) = selected_span.clone() {
-                            plot_ui.span(span);
-                        }
-                        plot_ui.add(area_left);
-                        plot_ui.add(rms_left);
-                        plot_ui.vline(cursor.clone());
+                left_plot.show(ui, |plot_ui| {
+                    plot_ui.span(out_of_scene_span_left.clone());
+                    plot_ui.span(out_of_scene_span_right.clone());
+                    if let Some(span) = selected_span.clone() {
+                        plot_ui.span(span);
+                    }
+                    plot_ui.add(area_left);
+                    plot_ui.add(rms_left);
+                    plot_ui.vline(cursor.clone());
 
-                        plot_ui.pointer_coordinate()
-                    })
+                    plot_ui.pointer_coordinate()
+                })
             });
             let right_response = ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
-                Plot::new("WaveformPlot_Right")
-                    .link_axis(link_group_id, link_vec)
-                    .link_cursor(link_group_id, link_vec)
-                    .default_y_bounds(-1.0, 1.0)
-                    .center_y_axis(true)
-                    .y_axis_label("R")
-                    .custom_x_axes(x_axes)
-                    .allow_scroll(egui::Vec2b::new(true, false))
-                    .allow_zoom(egui::Vec2b::new(true, false))
-                    .show(ui, |plot_ui| {
-                        plot_ui.span(out_of_scene_span_left);
-                        plot_ui.span(out_of_scene_span_right);
-                        if let Some(span) = selected_span {
-                            plot_ui.span(span);
-                        }
-                        plot_ui.add(area_right);
-                        plot_ui.add(rms_right);
-                        plot_ui.vline(cursor);
+                right_plot.show(ui, |plot_ui| {
+                    plot_ui.span(out_of_scene_span_left);
+                    plot_ui.span(out_of_scene_span_right);
+                    if let Some(span) = selected_span {
+                        plot_ui.span(span);
+                    }
+                    plot_ui.add(area_right);
+                    plot_ui.add(rms_right);
+                    plot_ui.vline(cursor);
 
-                        plot_ui.pointer_coordinate()
-                    })
+                    plot_ui.pointer_coordinate()
+                })
             });
 
             (left_response, right_response)
@@ -237,6 +288,16 @@ impl WaveformPreviewApp {
             .num_columns(2)
             .striped(true)
             .show(ui, |ui| {
+                ui.label("縦軸の単位");
+                egui::ComboBox::from_id_salt("縦軸の単位")
+                    .selected_text(config.view.scale_y.to_string())
+                    .show_ui(ui, |ui| {
+                        for x in [ViewScaleY::Linear, ViewScaleY::Decibel] {
+                            ui.selectable_value(&mut config.view.scale_y, x, x.to_string());
+                        }
+                    });
+                ui.end_row();
+
                 ui.label("波形色");
                 ui.color_edit_button_srgba(&mut config.view.waveform_color);
                 ui.end_row();

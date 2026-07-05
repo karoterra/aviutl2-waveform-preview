@@ -87,8 +87,32 @@ impl Default for AnalysisConfig {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+pub enum ViewScaleY {
+    Linear,
+    Decibel,
+}
+
+impl Default for ViewScaleY {
+    fn default() -> Self {
+        ViewScaleY::Linear
+    }
+}
+
+impl std::fmt::Display for ViewScaleY {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ViewScaleY::Linear => write!(f, "リニア"),
+            ViewScaleY::Decibel => write!(f, "dB"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewConfig {
+    #[serde(default)]
+    pub scale_y: ViewScaleY,
+
     #[serde(default = "ViewConfig::default_waveform_color")]
     pub waveform_color: Color32,
 
@@ -108,6 +132,7 @@ pub struct ViewConfig {
 impl Default for ViewConfig {
     fn default() -> Self {
         Self {
+            scale_y: ViewScaleY::default(),
             waveform_color: Self::default_waveform_color(),
             rms_color: Self::default_rms_color(),
             frame_cursor_color: Self::default_frame_cursor_color(),
