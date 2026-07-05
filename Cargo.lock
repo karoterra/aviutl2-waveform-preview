@@ -117,9 +117,9 @@ checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
 
 [[package]]
 name = "arrayvec"
-version = "0.7.7"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f02882884d3e1bc524fb12c79f107f6ad0e1cfd498c536ffb494301740995dfe"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "as-raw-xcb-connection"
@@ -141,9 +141,9 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "aviutl2"
-version = "0.36.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64f44c639dcfea75bb5a1d07d6954a601919d71b89465cd50c71a4414e0eb0b9"
+checksum = "660775f7ad01230fe76175d2b5ef8bfe6767fe3c778a669cc7f22c914f0a2d8c"
 dependencies = [
  "anyhow",
  "aviutl2-alias",
@@ -169,9 +169,9 @@ dependencies = [
 
 [[package]]
 name = "aviutl2-alias"
-version = "0.36.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c87894c7e6460fdf8add5a3273dce561e106bf5e2c0ed63b6d92ac72e23bfbb"
+checksum = "7bacebe55fc9ad6eb0ac4c244156aebe830b643bd6bf0deab0442ed530322349"
 dependencies = [
  "duplicate",
  "indexmap",
@@ -180,9 +180,9 @@ dependencies = [
 
 [[package]]
 name = "aviutl2-eframe"
-version = "0.36.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4b485d45299f33a516431ce238986cdc2e508102e8036fc39fb9c367b9d30d6"
+checksum = "c706d6973ce4863e152f22b762f90973bcfc46248fefebd732d0ed0f17810145"
 dependencies = [
  "anyhow",
  "aviutl2",
@@ -194,9 +194,9 @@ dependencies = [
 
 [[package]]
 name = "aviutl2-macros"
-version = "0.36.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f9a8d71f24e5be2d169b08352c3c52c2ca811747a4573a273c0dbe5215ffada"
+checksum = "d427b804c29dc21fbb41946623e9fc4434b93f6bd1ca9931c2fa3a99db7bf8a3"
 dependencies = [
  "decimal-rs",
  "either",
@@ -209,9 +209,9 @@ dependencies = [
 
 [[package]]
 name = "aviutl2-sys"
-version = "0.36.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51e50c68f5dbee36a07b94e1179b89716fd6f11537ca4585c090606a3268287b"
+checksum = "67e3aaf72be76292f671e9253dd282aed754bea1047138ead6297792961b652c"
 dependencies = [
  "windows-sys 0.61.2",
 ]
@@ -1381,14 +1381,14 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libredox"
-version = "0.1.17"
+version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f02ab6bace2054fb888a3c16f990117b579d14a3088e472d63c6011fa185c9d3"
+checksum = "c943259e342f1e06ff2da7a83eabdfe7f92ce10262688dbf1895ff0b3e6e4652"
 dependencies = [
  "bitflags 2.13.0",
  "libc",
  "plain",
- "redox_syscall 0.8.1",
+ "redox_syscall 0.9.0",
 ]
 
 [[package]]
@@ -1536,9 +1536,9 @@ dependencies = [
 
 [[package]]
 name = "num-bigint"
-version = "0.4.6"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
+checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -2153,9 +2153,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b44b894f2a6e36457d665d1e08c3866add6ed5e70050c1b4ba8a8ddedb02ce7"
+checksum = "c5102a6aaa05aa011a238e178e6bca86d2cb56fc9f586d37cb80f5bca6e07759"
 dependencies = [
  "bitflags 2.13.0",
 ]
