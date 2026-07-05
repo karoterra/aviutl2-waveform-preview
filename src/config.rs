@@ -131,6 +131,15 @@ pub struct ViewConfig {
 
     #[serde(default = "ViewConfig::default_out_of_scene_span_color")]
     pub out_of_scene_span_color: Color32,
+
+    #[serde(default)]
+    pub reference_line_enabled: bool,
+
+    #[serde(default = "ViewConfig::default_reference_line_value_db")]
+    pub reference_line_value_db: f64,
+
+    #[serde(default = "ViewConfig::default_reference_line_color")]
+    pub reference_line_color: Color32,
 }
 
 impl Default for ViewConfig {
@@ -142,6 +151,9 @@ impl Default for ViewConfig {
             frame_cursor_color: Self::default_frame_cursor_color(),
             selected_span_color: Self::default_selected_span_color(),
             out_of_scene_span_color: Self::default_out_of_scene_span_color(),
+            reference_line_enabled: false,
+            reference_line_value_db: Self::default_reference_line_value_db(),
+            reference_line_color: Self::default_reference_line_color(),
         }
     }
 }
@@ -165,6 +177,14 @@ impl ViewConfig {
 
     fn default_out_of_scene_span_color() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 60)
+    }
+
+    fn default_reference_line_value_db() -> f64 {
+        -3.0
+    }
+
+    fn default_reference_line_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 0, 0, 255)
     }
 }
 

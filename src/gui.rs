@@ -1,7 +1,7 @@
 use aviutl2::tracing;
 use aviutl2_eframe::egui::{InnerResponse, Response};
 use aviutl2_eframe::{AviUtl2EframeHandle, eframe, egui};
-use egui_plot::{FilledArea, GridMark, Plot, VLine};
+use egui_plot::{FilledArea, GridMark, HLine, Plot, VLine};
 
 use crate::EDIT_HANDLE;
 use crate::analyzer::{StereoWaveformBin, WAVEFORM_REPORT, WaveformAnalyzerStatus, WaveformReport};
@@ -44,6 +44,14 @@ fn remap(x: f64, a: f64, b: f64, c: f64, d: f64) -> f64 {
     c + (x - a) * (d - c) / (b - a)
 }
 
+fn remap_decibel_to_linear(db: f64) -> f64 {
+    remap(db, MIN_DB, 0.0, 0.0, 1.0)
+}
+
+fn decibel_to_linear(db: f64) -> f64 {
+    10.0_f64.powf(db / 20.0)
+}
+
 fn decibel_bipolar(x: f32) -> f64 {
     x.signum() as f64 * decibel_unipolar(x)
 }
@@ -57,7 +65,7 @@ fn decibel_unipolar(x: f32) -> f64 {
     }
     .clamp(MIN_DB, 0.0);
 
-    remap(db, MIN_DB, 0.0, 0.0, 1.0)
+    remap_decibel_to_linear(db)
 }
 
 impl WaveformPreviewApp {
@@ -167,6 +175,33 @@ impl WaveformPreviewApp {
             FilledArea::new("rms_right", &xs, &right_min, &right_max).fill_color(config.rms_color);
 
         (left, right)
+    }
+
+    fn reference_line_value(config: &ViewConfig) -> f64 {
+        let reference_db = config.reference_line_value_db.clamp(MIN_DB, 0.0);
+        match config.scale_y {
+            ViewScaleY::Linear => decibel_to_linear(reference_db),
+            ViewScaleY::DecibelBipolar | ViewScaleY::DecibelUnipolar => {
+                remap_decibel_to_linear(reference_db)
+            }
+        }
+    }
+
+    fn add_reference_line(plot_ui: &mut egui_plot::PlotUi<'_>, config: &ViewConfig) {
+        if !config.reference_line_enabled {
+            return;
+        }
+
+        let value = Self::reference_line_value(config);
+        plot_ui.hline(
+            HLine::new("WaveformPlot_reference_pos", value).color(config.reference_line_color),
+        );
+
+        if !matches!(config.scale_y, ViewScaleY::DecibelUnipolar) {
+            plot_ui.hline(
+                HLine::new("WaveformPlot_reference_neg", -value).color(config.reference_line_color),
+            );
+        }
     }
 
     fn new_plot(&mut self, ui: &mut egui::Ui, config: &ViewConfig) -> (Plot<'_>, Plot<'_>) {
@@ -285,6 +320,7 @@ impl WaveformPreviewApp {
                     }
                     plot_ui.add(area_left);
                     plot_ui.add(rms_left);
+                    Self::add_reference_line(plot_ui, config);
                     plot_ui.vline(cursor.clone());
 
                     if reset_plot {
@@ -304,6 +340,7 @@ impl WaveformPreviewApp {
                     }
                     plot_ui.add(area_right);
                     plot_ui.add(rms_right);
+                    Self::add_reference_line(plot_ui, config);
                     plot_ui.vline(cursor);
 
                     if reset_plot {
@@ -417,6 +454,28 @@ impl WaveformPreviewApp {
 
                 ui.label("シーン範囲外の色");
                 ui.color_edit_button_srgba(&mut config.view.out_of_scene_span_color);
+                ui.end_row();
+
+                ui.label("基準線を表示");
+                ui.checkbox(&mut config.view.reference_line_enabled, "オン");
+                ui.end_row();
+
+                ui.label("基準線の値");
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::DragValue::new(&mut config.view.reference_line_value_db)
+                            .speed(0.1)
+                            .range(MIN_DB..=0.0),
+                    );
+                    ui.label(format!(
+                        "[dB] ≒ {:.3}",
+                        decibel_to_linear(config.view.reference_line_value_db)
+                    ));
+                });
+                ui.end_row();
+
+                ui.label("基準線の色");
+                ui.color_edit_button_srgba(&mut config.view.reference_line_color);
                 ui.end_row();
             });
     }
