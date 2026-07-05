@@ -5,7 +5,7 @@ mod utils;
 
 use aviutl2::{AnyResult, generic::GenericPlugin, tracing};
 
-use crate::config::ANALYSIS_CONFIG;
+use crate::config::PLUGIN_CONFIG;
 
 pub static EDIT_HANDLE: aviutl2::generic::GlobalEditHandle =
     aviutl2::generic::GlobalEditHandle::new();
@@ -44,7 +44,7 @@ impl aviutl2::generic::GenericPlugin for WaveformPreviewPlugin {
         }
 
         registry.register_edit_menu("波形プレビュー\\解析開始", || {
-            let config = ANALYSIS_CONFIG.lock().unwrap().analysis.clone();
+            let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
             tracing::info!(
                 "Edit Menu: 解析開始 ({}, {}, {})",
                 config.range,
@@ -64,14 +64,14 @@ impl aviutl2::generic::GenericPlugin for WaveformPreviewPlugin {
         });
         registry.register_event_listener(aviutl2::generic::EventType::ChangeEditScene, || {
             tracing::info!("Change Edit Scene");
-            let config = ANALYSIS_CONFIG.lock().unwrap().analysis.clone();
+            let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
             if config.immediate {
                 crate::analyzer::analyze(&config);
             }
         });
         registry.register_event_listener(aviutl2::generic::EventType::UpdateObject, || {
             tracing::info!("Update Object");
-            let config = ANALYSIS_CONFIG.lock().unwrap().analysis.clone();
+            let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
             if config.immediate {
                 crate::analyzer::analyze(&config);
             }
@@ -83,7 +83,7 @@ impl Drop for WaveformPreviewPlugin {
     fn drop(&mut self) {
         tracing::info!("WaveformPreview Dropped !");
         {
-            let config = ANALYSIS_CONFIG.lock().unwrap();
+            let config = PLUGIN_CONFIG.lock().unwrap();
             if let Err(err) = config.save() {
                 tracing::error!("Failed to save config: {}", err);
             }

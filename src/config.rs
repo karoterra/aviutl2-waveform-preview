@@ -221,7 +221,7 @@ impl PluginConfig {
     }
 }
 
-pub static ANALYSIS_CONFIG: LazyLock<Mutex<PluginConfig>> = LazyLock::new(|| {
+pub static PLUGIN_CONFIG: LazyLock<Mutex<PluginConfig>> = LazyLock::new(|| {
     let config = match PluginConfig::load() {
         Ok(config) => config,
         Err(err) => {

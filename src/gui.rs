@@ -6,7 +6,7 @@ use egui_plot::{FilledArea, GridMark, Plot, VLine};
 use crate::EDIT_HANDLE;
 use crate::analyzer::{StereoWaveformBin, WAVEFORM_REPORT, WaveformAnalyzerStatus, WaveformReport};
 use crate::config::{
-    ANALYSIS_CONFIG, AnalysisAccuracy, AnalysisRange, PluginConfig, ViewConfig, ViewScaleY,
+    AnalysisAccuracy, AnalysisRange, PLUGIN_CONFIG, PluginConfig, ViewConfig, ViewScaleY,
 };
 
 pub struct WaveformPreviewApp {
@@ -323,7 +323,7 @@ impl WaveformPreviewApp {
 
 impl eframe::App for WaveformPreviewApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let mut config = ANALYSIS_CONFIG.lock().unwrap();
+        let mut config = PLUGIN_CONFIG.lock().unwrap();
         let status = crate::analyzer::get_status();
 
         egui::Panel::top("toolbar_panel").show_inside(ui, |ui| {
