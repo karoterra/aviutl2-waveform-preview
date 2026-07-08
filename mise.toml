@@ -29,3 +29,35 @@ run = "cargo test --workspace"
 [tasks."license:third-party"]
 description = "Generate third-party licenses"
 run = "cargo about generate about.hbs -o THIRD-PARTY-LICENSES.html"
+
+[tasks."release:tag"]
+description = "Update version, commit and tag release"
+shell = "bash"
+usage = '''
+arg "<target>" help="Target version"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="{{ usage.target }}"
+
+if [[ "$VERSION" == v* ]]; then
+    echo "Pass version without leading 'v'." >&2
+    exit 1
+fi
+
+echo "Release tag: v$VERSION"
+
+cargo set-version "$VERSION"
+sed -i "s/^version = .*/version = \\"$VERSION\\"/" aviutl2.toml
+
+git add Cargo.toml Cargo.lock aviutl2.toml
+git commit -m ":bookmark: v$VERSION"
+git tag -a "v$VERSION" -m "version $VERSION"
+
+echo ""
+echo "and then..."
+echo "\$ git push origin main"
+echo "\$ git push origin v$VERSION"
+'''
