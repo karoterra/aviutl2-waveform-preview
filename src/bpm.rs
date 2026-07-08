@@ -25,7 +25,7 @@ impl BpmPlotInfo {
     }
 }
 
-pub fn set_bpm_list(raw_list: &Vec<BpmInfo>) {
+pub fn set_bpm_list(raw_list: &[BpmInfo]) {
     let mut bpm_list = BPM_LIST.lock().unwrap();
     bpm_list.clear();
     bpm_list.extend(get_bpm_list_from_raw(raw_list));
@@ -35,8 +35,8 @@ pub fn get_bpm_list() -> Vec<BpmPlotInfo> {
     BPM_LIST.lock().unwrap().clone()
 }
 
-fn get_bpm_list_from_raw(raw_list: &Vec<BpmInfo>) -> Vec<BpmPlotInfo> {
-    let mut raw_list = raw_list.clone();
+fn get_bpm_list_from_raw(raw_list: &[BpmInfo]) -> Vec<BpmPlotInfo> {
+    let mut raw_list = raw_list.to_owned();
     raw_list.sort_unstable_by(|a, b| a.start.total_cmp(&b.start));
 
     let mut result: Vec<BpmPlotInfo> = raw_list

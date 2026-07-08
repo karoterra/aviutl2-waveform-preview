@@ -140,10 +140,10 @@ impl WaveformAnalyzer {
             return;
         }
 
-        if let Some(worker) = self.worker.take() {
-            if let Err(err) = worker.join() {
-                tracing::error!("Waveform Worker: join failed: {:?}", err);
-            }
+        if let Some(worker) = self.worker.take()
+            && let Err(err) = worker.join()
+        {
+            tracing::error!("Waveform Worker: join failed: {:?}", err);
         }
         self.tx = None;
 
@@ -159,12 +159,7 @@ impl WaveformAnalyzer {
     fn worker_main(command_rx: mpsc::Receiver<AnalyzerCommand>) {
         tracing::debug!("Waveform Worker: Start");
 
-        'main: loop {
-            let command = match command_rx.recv() {
-                Ok(command) => command,
-                Err(_) => break,
-            };
-
+        'main: while let Ok(command) = command_rx.recv() {
             match command {
                 AnalyzerCommand::Analyze(mut params) => {
                     tracing::debug!("Waveform Worker: Analyze command");
@@ -373,10 +368,10 @@ pub fn analyze(config: &AnalysisConfig) {
         analyzer.tx.clone()
     };
 
-    if let Some(tx) = tx {
-        if let Err(err) = tx.send(AnalyzerCommand::Analyze(params)) {
-            tracing::error!("Waveform Worker: failed to send Analyze command: {}", err);
-        }
+    if let Some(tx) = tx
+        && let Err(err) = tx.send(AnalyzerCommand::Analyze(params))
+    {
+        tracing::error!("Waveform Worker: failed to send Analyze command: {}", err);
     }
 }
 
@@ -390,10 +385,10 @@ pub fn cancel() {
         analyzer.tx.clone()
     };
 
-    if let Some(tx) = tx {
-        if let Err(err) = tx.send(AnalyzerCommand::Cancel) {
-            tracing::error!("Waveform Worker: failed to send Cancel command: {}", err);
-        }
+    if let Some(tx) = tx
+        && let Err(err) = tx.send(AnalyzerCommand::Cancel)
+    {
+        tracing::error!("Waveform Worker: failed to send Cancel command: {}", err);
     }
 }
 
@@ -413,9 +408,9 @@ pub fn shutdown() {
         drop(tx);
     }
 
-    if let Some(worker) = worker {
-        if let Err(err) = worker.join() {
-            tracing::error!("Waveform Worker: join failed: {:?}", err);
-        }
+    if let Some(worker) = worker
+        && let Err(err) = worker.join()
+    {
+        tracing::error!("Waveform Worker: join failed: {:?}", err);
     }
 }

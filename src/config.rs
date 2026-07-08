@@ -9,17 +9,12 @@ use aviutl2::{AnyResult, anyhow, tracing};
 use aviutl2_eframe::egui::Color32;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AnalysisRange {
+    #[default]
     All,
     Selected,
     VisibleTimeline,
-}
-
-impl Default for AnalysisRange {
-    fn default() -> Self {
-        Self::All
-    }
 }
 
 impl std::fmt::Display for AnalysisRange {
@@ -32,18 +27,13 @@ impl std::fmt::Display for AnalysisRange {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AnalysisAccuracy {
     Low,
+    #[default]
     Medium,
     High,
     VeryHigh,
-}
-
-impl Default for AnalysisAccuracy {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 impl AnalysisAccuracy {
@@ -68,7 +58,7 @@ impl std::fmt::Display for AnalysisAccuracy {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct AnalysisConfig {
     #[serde(default)]
     pub range: AnalysisRange,
@@ -80,27 +70,12 @@ pub struct AnalysisConfig {
     pub immediate: bool,
 }
 
-impl Default for AnalysisConfig {
-    fn default() -> Self {
-        Self {
-            range: AnalysisRange::default(),
-            accuracy: AnalysisAccuracy::default(),
-            immediate: false,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ViewScaleY {
+    #[default]
     Linear,
     DecibelBipolar,
     DecibelUnipolar,
-}
-
-impl Default for ViewScaleY {
-    fn default() -> Self {
-        ViewScaleY::Linear
-    }
 }
 
 impl std::fmt::Display for ViewScaleY {

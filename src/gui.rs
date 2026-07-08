@@ -126,9 +126,9 @@ impl WaveformPreviewApp {
             };
 
         let left =
-            FilledArea::new("left", &xs, &left_min, &left_max).fill_color(config.waveform_color);
+            FilledArea::new("left", xs, &left_min, &left_max).fill_color(config.waveform_color);
         let right =
-            FilledArea::new("right", &xs, &right_min, &right_max).fill_color(config.waveform_color);
+            FilledArea::new("right", xs, &right_min, &right_max).fill_color(config.waveform_color);
 
         (left, right)
     }
@@ -174,9 +174,9 @@ impl WaveformPreviewApp {
             };
 
         let left =
-            FilledArea::new("rms_left", &xs, &left_min, &left_max).fill_color(config.rms_color);
+            FilledArea::new("rms_left", xs, &left_min, &left_max).fill_color(config.rms_color);
         let right =
-            FilledArea::new("rms_right", &xs, &right_min, &right_max).fill_color(config.rms_color);
+            FilledArea::new("rms_right", xs, &right_min, &right_max).fill_color(config.rms_color);
 
         (left, right)
     }
@@ -211,7 +211,7 @@ impl WaveformPreviewApp {
     fn add_bpm_grid(
         plot_ui: &mut egui_plot::PlotUi<'_>,
         config: &ViewConfig,
-        bpm_list: &Vec<BpmPlotInfo>,
+        bpm_list: &[BpmPlotInfo],
         analysis_range: &RangeInclusive<f64>,
     ) {
         if !config.bpm_grid_enabled {
@@ -339,8 +339,8 @@ impl WaveformPreviewApp {
             .map(|i| start_sec + i as f64 / points_per_frame as f64 / fps)
             .collect();
 
-        let (area_left, area_right) = self.waveform_area(&xs, &report.bins, &config);
-        let (rms_left, rms_right) = self.rms_area(&xs, &report.bins, &config);
+        let (area_left, area_right) = self.waveform_area(&xs, &report.bins, config);
+        let (rms_left, rms_right) = self.rms_area(&xs, &report.bins, config);
 
         let cursor = VLine::new("WaveformPlot_cursor", edit_info.frame as f64 / fps)
             .color(config.frame_cursor_color);
@@ -386,7 +386,7 @@ impl WaveformPreviewApp {
         } = egui::CentralPanel::default().show_inside(ui, |ui| {
             let size = ui.available_size();
             let half_height = size.y / 2.0;
-            let (left_plot, right_plot) = self.new_plot(ui, &config);
+            let (left_plot, right_plot) = self.new_plot(ui, config);
 
             let left_response = ui.allocate_ui(egui::vec2(size.x, half_height), |ui| {
                 left_plot.show(ui, |plot_ui| {
@@ -646,12 +646,9 @@ impl eframe::App for WaveformPreviewApp {
             });
         });
 
-        match status {
-            WaveformAnalyzerStatus::Done => {
-                let report = WAVEFORM_REPORT.lock().unwrap();
-                self.show_plot(ui, &report, &config.view);
-            }
-            _ => {}
+        if let WaveformAnalyzerStatus::Done = status {
+            let report = WAVEFORM_REPORT.lock().unwrap();
+            self.show_plot(ui, &report, &config.view);
         }
     }
 
