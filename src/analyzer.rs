@@ -137,7 +137,6 @@ impl WaveformAnalyzer {
 
     fn start(&mut self) {
         if self.is_running() {
-            tracing::info!("Analyze worker is already running");
             return;
         }
 
@@ -148,7 +147,7 @@ impl WaveformAnalyzer {
         }
         self.tx = None;
 
-        tracing::info!("Start Analyze worker");
+        tracing::debug!("Start Analyze worker");
 
         let (tx, rx) = mpsc::channel::<AnalyzerCommand>();
         self.tx = Some(tx);
@@ -158,7 +157,7 @@ impl WaveformAnalyzer {
     }
 
     fn worker_main(command_rx: mpsc::Receiver<AnalyzerCommand>) {
-        tracing::info!("Waveform Worker: Start");
+        tracing::debug!("Waveform Worker: Start");
 
         'main: loop {
             let command = match command_rx.recv() {
@@ -168,7 +167,7 @@ impl WaveformAnalyzer {
 
             match command {
                 AnalyzerCommand::Analyze(mut params) => {
-                    tracing::info!("Waveform Worker: Analyze command");
+                    tracing::debug!("Waveform Worker: Analyze command");
                     'analyze: loop {
                         match Self::worker_analyze(&command_rx, params) {
                             Ok(AnalyzeOutcome::Done) => {
@@ -196,24 +195,24 @@ impl WaveformAnalyzer {
                     }
                 }
                 AnalyzerCommand::Cancel => {
-                    tracing::info!("Waveform Worker: Cancel command");
+                    tracing::debug!("Waveform Worker: Cancel command");
                 }
                 AnalyzerCommand::Shutdown => {
-                    tracing::info!("Waveform Worker: Shutdown command");
+                    tracing::debug!("Waveform Worker: Shutdown command");
                     break 'main;
                 }
             }
             crate::request_repaint();
         }
 
-        tracing::info!("Waveform Worker: End");
+        tracing::debug!("Waveform Worker: End");
     }
 
     fn worker_analyze(
         command_rx: &mpsc::Receiver<AnalyzerCommand>,
         params: AnalysisParams,
     ) -> AnyResult<AnalyzeOutcome> {
-        tracing::info!("Start analyzing: {:?}", params);
+        tracing::debug!("Start analyzing: {:?}", params);
         let total_frame = params.end - params.start + 1;
         {
             let mut analyzer = WAVEFORM_ANALYZER.lock().unwrap();
@@ -251,7 +250,6 @@ impl WaveformAnalyzer {
             }
 
             let result = EDIT_HANDLE.rendering_scene_audio(i, move |result| {
-                // tracing::info!("rendered: {}", result.frame);
                 let bins = Self::analyze_frame(result, params.accuracy);
 
                 {
@@ -340,7 +338,6 @@ pub fn get_status() -> WaveformAnalyzerStatus {
 
 pub fn analyze(config: &AnalysisConfig) {
     let edit_info = EDIT_HANDLE.get_edit_info();
-    tracing::info!("シーンフレーム数: {}", edit_info.frame_max);
 
     let params = {
         let (start, end) = match config.range {
@@ -356,7 +353,7 @@ pub fn analyze(config: &AnalysisConfig) {
             }
             AnalysisRange::VisibleTimeline => (
                 edit_info.display_frame_start as u32,
-                (edit_info.display_frame_start + edit_info.display_frame_num)
+                (edit_info.display_frame_start + edit_info.display_frame_num - 1)
                     .min(edit_info.frame_max) as u32,
             ),
         };

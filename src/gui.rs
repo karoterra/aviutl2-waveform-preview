@@ -232,7 +232,7 @@ impl WaveformPreviewApp {
         let px_per_sec = px / sec;
 
         for bpm in bpm_list.iter() {
-            if bpm.beat == 0 || bpm.tempo <= 0.0 {
+            if bpm.beat <= 0 || bpm.tempo <= 0.0 {
                 continue;
             }
 
@@ -402,7 +402,7 @@ impl WaveformPreviewApp {
                     plot_ui.vline(cursor.clone());
 
                     if reset_plot {
-                        tracing::info!("Reset Y range");
+                        tracing::debug!("Reset Y range");
                         plot_ui.set_plot_bounds_y(range_y.clone());
                     }
 
@@ -585,12 +585,12 @@ impl eframe::App for WaveformPreviewApp {
             ui.horizontal(|ui| {
                 if status.is_analyzing() {
                     if ui.button(translate("キャンセル")).clicked() {
-                        tracing::info!("キャンセル");
+                        tracing::debug!("キャンセル");
                         crate::analyzer::cancel();
                     }
                 } else {
                     if ui.button(translate("解析開始")).clicked() {
-                        tracing::info!("解析開始");
+                        tracing::debug!("解析開始");
                         crate::analyzer::analyze(&config.analysis);
                     }
                 }
@@ -599,7 +599,7 @@ impl eframe::App for WaveformPreviewApp {
                     .checkbox(&mut config.analysis.immediate, translate("即時"))
                     .changed()
                 {
-                    tracing::info!("即時モード: {}", config.analysis.immediate);
+                    tracing::debug!("即時モード: {}", config.analysis.immediate);
                 }
 
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {

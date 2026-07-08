@@ -46,21 +46,21 @@ impl aviutl2::generic::GenericPlugin for WaveformPreviewPlugin {
     }
 
     fn event_change_edit_frame(&mut self) {
-        tracing::info!("Change Edit Frame");
+        tracing::debug!("Change Edit Frame");
         self.request_repaint();
     }
 
     fn event_change_scene_info(&mut self) {
-        tracing::info!("Change Scene Info");
+        tracing::debug!("Change Scene Info");
         match EDIT_HANDLE.call_read_section(|read_section| read_section.get_grid_bpm_list()) {
             Ok(Ok(bpm_list)) => {
                 crate::bpm::set_bpm_list(&bpm_list);
             }
             Ok(Err(err)) => {
-                tracing::error!("Failed to bpm list: {}", err);
+                tracing::error!("Failed to get bpm list: {}", err);
             }
             Err(err) => {
-                tracing::error!("Failed to bpm list: {}", err);
+                tracing::error!("Failed to get bpm list: {}", err);
             }
         }
         let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
@@ -70,7 +70,7 @@ impl aviutl2::generic::GenericPlugin for WaveformPreviewPlugin {
     }
 
     fn event_update_object_info(&mut self) {
-        tracing::info!("Update Object");
+        tracing::debug!("Update Object");
         let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
         if config.immediate {
             crate::analyzer::analyze(&config);
@@ -83,7 +83,7 @@ impl WaveformPreviewPlugin {
     #[edit(name = "波形プレビュー\\解析開始")]
     fn analyze_waveform() -> AnyResult<()> {
         let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
-        tracing::info!(
+        tracing::debug!(
             "Edit Menu: 解析開始 ({}, {}, {})",
             config.range,
             config.accuracy,
@@ -95,7 +95,7 @@ impl WaveformPreviewPlugin {
 
     #[edit(name = "波形プレビュー\\キャンセル")]
     fn cancel_analysis() -> AnyResult<()> {
-        tracing::info!("Edit Menu: 解析キャンセル");
+        tracing::debug!("Edit Menu: 解析キャンセル");
         crate::analyzer::cancel();
         Ok(())
     }
@@ -103,7 +103,7 @@ impl WaveformPreviewPlugin {
 
 impl Drop for WaveformPreviewPlugin {
     fn drop(&mut self) {
-        tracing::info!("WaveformPreview Dropped !");
+        tracing::debug!("WaveformPreview Dropped !");
         {
             let config = PLUGIN_CONFIG.lock().unwrap();
             if let Err(err) = config.save() {
