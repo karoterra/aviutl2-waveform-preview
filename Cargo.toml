@@ -2,6 +2,7 @@
 name = "aviutl2-waveform-preview"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [lib]
 name = "waveformpreview"

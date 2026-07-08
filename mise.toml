@@ -1,4 +1,5 @@
 [tools]
+"github:EmbarkStudios/cargo-about" = "latest"
 "github:sevenc-nanashi/aviutl2-cli" = { version = "latest", bin = "au2.exe" }
 
 [tasks.prepare]
@@ -24,3 +25,7 @@ depends = ["check:*"]
 [tasks.test]
 description = "Test"
 run = "cargo test --workspace"
+
+[tasks."license:third-party"]
+description = "Generate third-party licenses"
+run = "cargo about generate about.hbs -o THIRD-PARTY-LICENSES.html"
