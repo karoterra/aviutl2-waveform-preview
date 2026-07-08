@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 pub struct NChunks<'a, T> {
     slice: &'a [T],
     chunks: usize,
@@ -46,6 +48,24 @@ impl<'a, T> Iterator for NChunks<'a, T> {
 }
 
 impl<T> ExactSizeIterator for NChunks<'_, T> {}
+
+pub fn intersection(
+    a: &RangeInclusive<f64>,
+    b: &RangeInclusive<f64>,
+) -> Option<RangeInclusive<f64>> {
+    if a.is_empty() || b.is_empty() {
+        return None;
+    }
+
+    let start = a.start().max(*b.start());
+    let end = a.end().min(*b.end());
+
+    if start <= end {
+        Some(start..=end)
+    } else {
+        None
+    }
+}
 
 #[cfg(test)]
 mod tests {

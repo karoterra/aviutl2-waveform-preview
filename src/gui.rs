@@ -1,10 +1,13 @@
+use std::ops::RangeInclusive;
+
 use aviutl2::tracing;
 use aviutl2_eframe::egui::{InnerResponse, Response};
 use aviutl2_eframe::{AviUtl2EframeHandle, eframe, egui};
-use egui_plot::{FilledArea, GridMark, HLine, Plot, VLine};
+use egui_plot::{FilledArea, GridMark, HLine, LineStyle, Plot, VLine};
 
 use crate::EDIT_HANDLE;
 use crate::analyzer::{StereoWaveformBin, WAVEFORM_REPORT, WaveformAnalyzerStatus, WaveformReport};
+use crate::bpm::BpmPlotInfo;
 use crate::config::{
     AnalysisAccuracy, AnalysisRange, PLUGIN_CONFIG, PluginConfig, ViewConfig, ViewScaleY,
 };
@@ -204,6 +207,75 @@ impl WaveformPreviewApp {
         }
     }
 
+    fn add_bpm_grid(
+        plot_ui: &mut egui_plot::PlotUi<'_>,
+        config: &ViewConfig,
+        bpm_list: &Vec<BpmPlotInfo>,
+        analysis_range: &RangeInclusive<f64>,
+    ) {
+        if !config.bpm_grid_enabled {
+            return;
+        }
+
+        let bounds = plot_ui.plot_bounds();
+        let plot_range = crate::utils::intersection(&bounds.range_x(), analysis_range);
+        if plot_range.is_none() {
+            return;
+        }
+        let plot_range = plot_range.unwrap();
+        let px = plot_ui.transform().frame().width() as f64;
+        let sec = bounds.max()[0] - bounds.min()[0];
+        if sec <= 0.0 || !sec.is_finite() {
+            return;
+        }
+        let px_per_sec = px / sec;
+
+        for bpm in bpm_list.iter() {
+            if bpm.beat == 0 || bpm.tempo <= 0.0 {
+                continue;
+            }
+
+            let range = crate::utils::intersection(&plot_range, &bpm.range());
+            if range.is_none() {
+                continue;
+            }
+            let range = range.unwrap();
+
+            let beat_per_sec = bpm.tempo / 60.0;
+            let px_per_beat = px_per_sec / beat_per_sec;
+            let px_per_measure = px_per_beat * bpm.beat as f64;
+            let offset = bpm.start + bpm.offset;
+            let start_idx = ((range.start() - offset) * beat_per_sec).ceil() as i64;
+            let end_idx = ((range.end() - offset) * beat_per_sec).floor() as i64;
+            for i in start_idx..=end_idx {
+                let sec = offset + i as f64 / beat_per_sec;
+                let is_measure = i.rem_euclid(bpm.beat as i64) == 0;
+                if !is_measure && px_per_beat >= 6.0 {
+                    plot_ui.vline(
+                        VLine::new("bpm_beat", sec)
+                            .color(config.bpm_grid_beat_color)
+                            .style(LineStyle::dashed_dense()),
+                    );
+                }
+                if is_measure && px_per_measure >= 6.0 {
+                    plot_ui.vline(
+                        VLine::new("bpm_measure", sec)
+                            .color(config.bpm_grid_measure_color)
+                            .style(LineStyle::dashed_dense()),
+                    );
+                }
+            }
+
+            if range.contains(&bpm.start) {
+                plot_ui.vline(
+                    VLine::new("bpm_start", bpm.start)
+                        .color(config.bpm_grid_start_color)
+                        .width(3.0),
+                );
+            }
+        }
+    }
+
     fn new_plot(&mut self, ui: &mut egui::Ui, config: &ViewConfig) -> (Plot<'_>, Plot<'_>) {
         let link_group_id = ui.id().with("WaveformPlot_LinkGroup");
         let link_vec = egui::Vec2b::new(true, true);
@@ -260,6 +332,8 @@ impl WaveformPreviewApp {
         let fps = report.params.fps;
 
         let start_sec = report.params.start as f64 / fps;
+        let end_sec = report.params.end as f64 / fps;
+        let analysis_range_sec = start_sec..=end_sec;
         let xs: Vec<f64> = (0..report.bins.len())
             .map(|i| start_sec + i as f64 / points_per_frame as f64 / fps)
             .collect();
@@ -284,6 +358,8 @@ impl WaveformPreviewApp {
         let out_of_scene_span_right =
             egui_plot::Span::new("", (edit_info.frame_max as f64 / fps)..=f64::INFINITY)
                 .fill(config.out_of_scene_span_color);
+
+        let bpm_list = crate::bpm::get_bpm_list();
 
         let reset_plot = self.reset_plot;
         self.reset_plot = false;
@@ -320,6 +396,7 @@ impl WaveformPreviewApp {
                     }
                     plot_ui.add(area_left);
                     plot_ui.add(rms_left);
+                    Self::add_bpm_grid(plot_ui, config, &bpm_list, &analysis_range_sec);
                     Self::add_reference_line(plot_ui, config);
                     plot_ui.vline(cursor.clone());
 
@@ -340,6 +417,7 @@ impl WaveformPreviewApp {
                     }
                     plot_ui.add(area_right);
                     plot_ui.add(rms_right);
+                    Self::add_bpm_grid(plot_ui, config, &bpm_list, &analysis_range_sec);
                     Self::add_reference_line(plot_ui, config);
                     plot_ui.vline(cursor);
 
@@ -476,6 +554,22 @@ impl WaveformPreviewApp {
 
                 ui.label("基準線の色");
                 ui.color_edit_button_srgba(&mut config.view.reference_line_color);
+                ui.end_row();
+
+                ui.label("BPMグリッドを表示");
+                ui.checkbox(&mut config.view.bpm_grid_enabled, "オン");
+                ui.end_row();
+
+                ui.label("BPMグリッド(拍)の色");
+                ui.color_edit_button_srgba(&mut config.view.bpm_grid_beat_color);
+                ui.end_row();
+
+                ui.label("BPMグリッド(小節)の色");
+                ui.color_edit_button_srgba(&mut config.view.bpm_grid_measure_color);
+                ui.end_row();
+
+                ui.label("BPMグリッド(開始線)の色");
+                ui.color_edit_button_srgba(&mut config.view.bpm_grid_start_color);
                 ui.end_row();
             });
     }

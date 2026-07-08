@@ -1,4 +1,5 @@
 mod analyzer;
+mod bpm;
 mod config;
 mod gui;
 mod utils;
@@ -42,40 +43,61 @@ impl aviutl2::generic::GenericPlugin for WaveformPreviewPlugin {
                 .register_window_client("波形プレビュー", &handle)
                 .unwrap();
         }
+    }
 
-        registry.register_edit_menu("波形プレビュー\\解析開始", || {
-            let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
-            tracing::info!(
-                "Edit Menu: 解析開始 ({}, {}, {})",
-                config.range,
-                config.accuracy,
-                config.immediate
-            );
+    fn event_change_edit_frame(&mut self) {
+        tracing::info!("Change Edit Frame");
+        self.request_repaint();
+    }
+
+    fn event_change_scene_info(&mut self) {
+        tracing::info!("Change Scene Info");
+        match EDIT_HANDLE.call_read_section(|read_section| read_section.get_grid_bpm_list()) {
+            Ok(Ok(bpm_list)) => {
+                crate::bpm::set_bpm_list(&bpm_list);
+            }
+            Ok(Err(err)) => {
+                tracing::error!("Failed to bpm list: {}", err);
+            }
+            Err(err) => {
+                tracing::error!("Failed to bpm list: {}", err);
+            }
+        }
+        let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
+        if config.immediate {
             crate::analyzer::analyze(&config);
-        });
-        registry.register_edit_menu("波形プレビュー\\キャンセル", || {
-            tracing::info!("Edit Menu: 解析キャンセル");
-            crate::analyzer::cancel();
-        });
+        }
+    }
 
-        registry.register_event_listener(aviutl2::generic::EventType::ChangeEditFrame, || {
-            tracing::info!("Change Edit Frame");
-            request_repaint();
-        });
-        registry.register_event_listener(aviutl2::generic::EventType::ChangeEditScene, || {
-            tracing::info!("Change Edit Scene");
-            let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
-            if config.immediate {
-                crate::analyzer::analyze(&config);
-            }
-        });
-        registry.register_event_listener(aviutl2::generic::EventType::UpdateObject, || {
-            tracing::info!("Update Object");
-            let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
-            if config.immediate {
-                crate::analyzer::analyze(&config);
-            }
-        });
+    fn event_update_object_info(&mut self) {
+        tracing::info!("Update Object");
+        let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
+        if config.immediate {
+            crate::analyzer::analyze(&config);
+        }
+    }
+}
+
+#[aviutl2::generic::menus]
+impl WaveformPreviewPlugin {
+    #[edit(name = "波形プレビュー\\解析開始")]
+    fn analyze_waveform() -> AnyResult<()> {
+        let config = PLUGIN_CONFIG.lock().unwrap().analysis.clone();
+        tracing::info!(
+            "Edit Menu: 解析開始 ({}, {}, {})",
+            config.range,
+            config.accuracy,
+            config.immediate
+        );
+        crate::analyzer::analyze(&config);
+        Ok(())
+    }
+
+    #[edit(name = "波形プレビュー\\キャンセル")]
+    fn cancel_analysis() -> AnyResult<()> {
+        tracing::info!("Edit Menu: 解析キャンセル");
+        crate::analyzer::cancel();
+        Ok(())
     }
 }
 

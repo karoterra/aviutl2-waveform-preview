@@ -140,6 +140,18 @@ pub struct ViewConfig {
 
     #[serde(default = "ViewConfig::default_reference_line_color")]
     pub reference_line_color: Color32,
+
+    #[serde(default)]
+    pub bpm_grid_enabled: bool,
+
+    #[serde(default = "ViewConfig::default_bpm_grid_beat_color")]
+    pub bpm_grid_beat_color: Color32,
+
+    #[serde(default = "ViewConfig::default_bpm_grid_measure_color")]
+    pub bpm_grid_measure_color: Color32,
+
+    #[serde(default = "ViewConfig::default_bpm_grid_start_color")]
+    pub bpm_grid_start_color: Color32,
 }
 
 impl Default for ViewConfig {
@@ -154,6 +166,10 @@ impl Default for ViewConfig {
             reference_line_enabled: false,
             reference_line_value_db: Self::default_reference_line_value_db(),
             reference_line_color: Self::default_reference_line_color(),
+            bpm_grid_enabled: false,
+            bpm_grid_beat_color: Self::default_bpm_grid_beat_color(),
+            bpm_grid_measure_color: Self::default_bpm_grid_measure_color(),
+            bpm_grid_start_color: Self::default_bpm_grid_start_color(),
         }
     }
 }
@@ -185,6 +201,18 @@ impl ViewConfig {
 
     fn default_reference_line_color() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 0, 0, 255)
+    }
+
+    fn default_bpm_grid_beat_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 255, 0, 255)
+    }
+
+    fn default_bpm_grid_measure_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 150, 0, 255)
+    }
+
+    fn default_bpm_grid_start_color() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 150, 0, 255)
     }
 }
 
