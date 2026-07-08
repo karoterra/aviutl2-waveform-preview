@@ -1,1 +1,49 @@
+[Language]
+; 言語ファイルの情報
+Information=English Language for Waveform Preview plugin by karoterra
+
 [waveformpreview.aux2]
+; ツールバー
+解析開始=Analyze
+キャンセル=Cancel
+即時=Auto
+設定=Settings
+; ステータスバー
+解析完了=Done
+解析中=Analyzing...
+キャンセルされました=Canceled
+エラー: {message}=Error: {message}
+; 設定
+解析=Analysis
+即時解析=Immediate Mode
+オン=On
+解析対象=Range
+全体=All
+選択範囲=Selected
+表示範囲=Visible Range
+解析精度=Accuracy
+低=Low
+標準=Medium
+高=High
+最高=Very High
+表示=View
+縦軸の単位=Y-Axis Scale
+リニア=Linear
+dB（正負）=dB (bipolar)
+dB（絶対値）=dB (absolute)
+波形色=Waveform Color
+RMS色=RMS Color
+カーソルの色=Cursor Color
+選択範囲の色=Selected Range Color
+シーン範囲外の色=Outside Scene Color
+基準線を表示=Reference Line
+基準線の値=Reference Value
+基準線の色=Reference Line Color
+BPMグリッドを表示=BPM Grid
+BPMグリッド(拍)の色=BPM Grid Beat Color
+BPMグリッド(小節)の色=BPM Grid Measure Color
+BPMグリッド(開始線)の色=BPM Grid Start Line Color
+
+[Menu]
+; ウィンドウ
+波形プレビュー=Waveform Preview

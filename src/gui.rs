@@ -1,5 +1,6 @@
 use std::ops::RangeInclusive;
 
+use aviutl2::config::translate;
 use aviutl2::tracing;
 use aviutl2_eframe::egui::{InnerResponse, Response};
 use aviutl2_eframe::{AviUtl2EframeHandle, eframe, egui};
@@ -464,17 +465,17 @@ impl WaveformPreviewApp {
     }
 
     fn show_config(&mut self, ui: &mut egui::Ui, config: &mut PluginConfig) {
-        ui.heading("解析");
+        ui.heading(translate("解析"));
         ui.separator();
         egui::Grid::new("analysis_config_grid")
             .num_columns(2)
             .striped(true)
             .show(ui, |ui| {
-                ui.label("即時解析");
-                ui.checkbox(&mut config.analysis.immediate, "オン");
+                ui.label(translate("即時解析"));
+                ui.checkbox(&mut config.analysis.immediate, translate("オン"));
                 ui.end_row();
 
-                ui.label("解析対象");
+                ui.label(translate("解析対象"));
                 let values = [
                     AnalysisRange::All,
                     AnalysisRange::Selected,
@@ -483,7 +484,7 @@ impl WaveformPreviewApp {
                 self.combobox(ui, "解析対象", &mut config.analysis.range, &values);
                 ui.end_row();
 
-                ui.label("解析精度");
+                ui.label(translate("解析精度"));
                 let values = [
                     AnalysisAccuracy::Low,
                     AnalysisAccuracy::Medium,
@@ -495,13 +496,13 @@ impl WaveformPreviewApp {
             });
 
         ui.add_space(8.0);
-        ui.heading("表示");
+        ui.heading(translate("表示"));
         ui.separator();
         egui::Grid::new("view_config_grid")
             .num_columns(2)
             .striped(true)
             .show(ui, |ui| {
-                ui.label("縦軸の単位");
+                ui.label(translate("縦軸の単位"));
                 let values = [
                     ViewScaleY::Linear,
                     ViewScaleY::DecibelBipolar,
@@ -514,31 +515,31 @@ impl WaveformPreviewApp {
                 }
                 ui.end_row();
 
-                ui.label("波形色");
+                ui.label(translate("波形色"));
                 ui.color_edit_button_srgba(&mut config.view.waveform_color);
                 ui.end_row();
 
-                ui.label("RMS色");
+                ui.label(translate("RMS色"));
                 ui.color_edit_button_srgba(&mut config.view.rms_color);
                 ui.end_row();
 
-                ui.label("カーソルの色");
+                ui.label(translate("カーソルの色"));
                 ui.color_edit_button_srgba(&mut config.view.frame_cursor_color);
                 ui.end_row();
 
-                ui.label("選択範囲の色");
+                ui.label(translate("選択範囲の色"));
                 ui.color_edit_button_srgba(&mut config.view.selected_span_color);
                 ui.end_row();
 
-                ui.label("シーン範囲外の色");
+                ui.label(translate("シーン範囲外の色"));
                 ui.color_edit_button_srgba(&mut config.view.out_of_scene_span_color);
                 ui.end_row();
 
-                ui.label("基準線を表示");
-                ui.checkbox(&mut config.view.reference_line_enabled, "オン");
+                ui.label(translate("基準線を表示"));
+                ui.checkbox(&mut config.view.reference_line_enabled, translate("オン"));
                 ui.end_row();
 
-                ui.label("基準線の値");
+                ui.label(translate("基準線の値"));
                 ui.horizontal(|ui| {
                     ui.add(
                         egui::DragValue::new(&mut config.view.reference_line_value_db)
@@ -552,23 +553,23 @@ impl WaveformPreviewApp {
                 });
                 ui.end_row();
 
-                ui.label("基準線の色");
+                ui.label(translate("基準線の色"));
                 ui.color_edit_button_srgba(&mut config.view.reference_line_color);
                 ui.end_row();
 
-                ui.label("BPMグリッドを表示");
-                ui.checkbox(&mut config.view.bpm_grid_enabled, "オン");
+                ui.label(translate("BPMグリッドを表示"));
+                ui.checkbox(&mut config.view.bpm_grid_enabled, translate("オン"));
                 ui.end_row();
 
-                ui.label("BPMグリッド(拍)の色");
+                ui.label(translate("BPMグリッド(拍)の色"));
                 ui.color_edit_button_srgba(&mut config.view.bpm_grid_beat_color);
                 ui.end_row();
 
-                ui.label("BPMグリッド(小節)の色");
+                ui.label(translate("BPMグリッド(小節)の色"));
                 ui.color_edit_button_srgba(&mut config.view.bpm_grid_measure_color);
                 ui.end_row();
 
-                ui.label("BPMグリッド(開始線)の色");
+                ui.label(translate("BPMグリッド(開始線)の色"));
                 ui.color_edit_button_srgba(&mut config.view.bpm_grid_start_color);
                 ui.end_row();
             });
@@ -583,26 +584,26 @@ impl eframe::App for WaveformPreviewApp {
         egui::Panel::top("toolbar_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 if status.is_analyzing() {
-                    if ui.button("キャンセル").clicked() {
+                    if ui.button(translate("キャンセル")).clicked() {
                         tracing::info!("キャンセル");
                         crate::analyzer::cancel();
                     }
                 } else {
-                    if ui.button("解析開始").clicked() {
+                    if ui.button(translate("解析開始")).clicked() {
                         tracing::info!("解析開始");
                         crate::analyzer::analyze(&config.analysis);
                     }
                 }
 
                 if ui
-                    .checkbox(&mut config.analysis.immediate, "即時")
+                    .checkbox(&mut config.analysis.immediate, translate("即時"))
                     .changed()
                 {
                     tracing::info!("即時モード: {}", config.analysis.immediate);
                 }
 
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
-                    if ui.button("設定").clicked() {
+                    if ui.button(translate("設定")).clicked() {
                         self.config_panel = !self.config_panel;
                     }
                 });
@@ -613,13 +614,13 @@ impl eframe::App for WaveformPreviewApp {
             ui.horizontal(|ui| match status.clone() {
                 WaveformAnalyzerStatus::Init => {}
                 WaveformAnalyzerStatus::Done => {
-                    ui.label("解析完了");
+                    ui.label(translate("解析完了"));
                 }
                 WaveformAnalyzerStatus::Analyzing {
                     completed_frame,
                     total_frame,
                 } => {
-                    ui.label("解析中");
+                    ui.label(translate("解析中"));
                     let progress = if total_frame == 0 {
                         0.0
                     } else {
@@ -632,10 +633,10 @@ impl eframe::App for WaveformPreviewApp {
                     );
                 }
                 WaveformAnalyzerStatus::Canceled => {
-                    ui.label("キャンセルされました");
+                    ui.label(translate("キャンセルされました"));
                 }
                 WaveformAnalyzerStatus::Failed { message } => {
-                    ui.label(format!("エラー: {}", message));
+                    ui.label(translate("エラー: {message}").replace("{message}", &message));
                 }
             });
         });

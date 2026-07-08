@@ -4,6 +4,7 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
+use aviutl2::config::translate;
 use aviutl2::{AnyResult, anyhow, tracing};
 use aviutl2_eframe::egui::Color32;
 use serde::{Deserialize, Serialize};
@@ -24,9 +25,9 @@ impl Default for AnalysisRange {
 impl std::fmt::Display for AnalysisRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AnalysisRange::All => write!(f, "全体"),
-            AnalysisRange::Selected => write!(f, "選択範囲"),
-            AnalysisRange::VisibleTimeline => write!(f, "表示範囲"),
+            AnalysisRange::All => write!(f, "{}", translate("全体")),
+            AnalysisRange::Selected => write!(f, "{}", translate("選択範囲")),
+            AnalysisRange::VisibleTimeline => write!(f, "{}", translate("表示範囲")),
         }
     }
 }
@@ -59,10 +60,10 @@ impl AnalysisAccuracy {
 impl std::fmt::Display for AnalysisAccuracy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AnalysisAccuracy::Low => write!(f, "低"),
-            AnalysisAccuracy::Medium => write!(f, "標準"),
-            AnalysisAccuracy::High => write!(f, "高"),
-            AnalysisAccuracy::VeryHigh => write!(f, "最高"),
+            AnalysisAccuracy::Low => write!(f, "{}", translate("低")),
+            AnalysisAccuracy::Medium => write!(f, "{}", translate("標準")),
+            AnalysisAccuracy::High => write!(f, "{}", translate("高")),
+            AnalysisAccuracy::VeryHigh => write!(f, "{}", translate("最高")),
         }
     }
 }
@@ -105,9 +106,9 @@ impl Default for ViewScaleY {
 impl std::fmt::Display for ViewScaleY {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ViewScaleY::Linear => write!(f, "リニア"),
-            ViewScaleY::DecibelBipolar => write!(f, "dB（正負）"),
-            ViewScaleY::DecibelUnipolar => write!(f, "dB（絶対値）"),
+            ViewScaleY::Linear => write!(f, "{}", translate("リニア")),
+            ViewScaleY::DecibelBipolar => write!(f, "{}", translate("dB（正負）")),
+            ViewScaleY::DecibelUnipolar => write!(f, "{}", translate("dB（絶対値）")),
         }
     }
 }
