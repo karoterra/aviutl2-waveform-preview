@@ -1,0 +1,7 @@
+# Waveform Preview (波形プレビュー)
+
+AviUtl2 で編集中の音声波形を確認するためのプラグインです。
+
+メニューの「表示 → 波形プレビュー」からウィンドウを開いてご利用ください。
+
+公開ページ: https://github.com/karoterra/aviutl2-waveform-preview
