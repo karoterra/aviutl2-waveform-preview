@@ -47,6 +47,7 @@ AviUtl ExEdit2 v2.0.54 にて動作確認しました。
 ## 設定
 
 設定情報は `{プラグインフォルダ}/Karoterra.WaveformPreview/waveformpreview_config.json` に保存されます。
+設定ファイルを削除すると、次回起動時に初期設定で起動します。
 
 ### 解析設定
 
